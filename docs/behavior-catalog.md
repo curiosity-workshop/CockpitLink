@@ -2,6 +2,31 @@
 
 The behavior catalog maps cockpit intent to simulator-specific bindings.
 
+## Runtime API
+
+Host code loads a catalog with:
+
+```cpp
+std::vector<std::string> errors;
+auto catalog =
+    cockpitlink::catalog::loadBehaviorCatalog(path, errors);
+```
+
+Loading performs JSON syntax and schema validation and returns actionable
+diagnostics through `errors`. A loaded catalog supports lookup by stable
+behavior ID and by the session handle derived from catalog order:
+
+```cpp
+const auto* behavior = catalog->find("lights.beacon");
+const auto handle = catalog->handleFor("lights.beacon");
+```
+
+Resolved X-Plane bindings expose capability status, dataref operations, scalar
+or array addressing, numeric scaling, and write strategy. Catalog order is
+currently the source of deterministic session handles; profiles and layered
+catalog merging can replace that policy later without putting transport
+details into the JSON schema.
+
 ## Behavior Entry
 
 ```json

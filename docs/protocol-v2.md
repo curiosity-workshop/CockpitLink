@@ -135,6 +135,22 @@ The device should advertise:
 Payload size must be negotiated. Small boards can advertise smaller receive
 buffers without forcing the whole protocol to shrink.
 
+The initial implementation applies local transport budgets before adding new
+wire-level negotiation:
+
+- Host reads and message delivery are bounded per X-Plane tick.
+- Host writes are queued, partial-write safe, and limited to one 64-byte chunk
+  per tick.
+- Setup/configuration frames have priority over replaceable streamed values.
+- Unsent streamed values for the same behavior handle are coalesced to the
+  newest value.
+- Firmware behavior requests are spaced 25 ms apart.
+- Host behavior assignments retain a conservative 100 ms fallback spacing.
+
+These are scheduling rules for Protocol V2 and do not alter its binary framing.
+Future `FlowControl` payloads can negotiate the limits without redesigning the
+host queue.
+
 ## Failure Behavior
 
 Failure frames should be explicit. Initial failure codes:

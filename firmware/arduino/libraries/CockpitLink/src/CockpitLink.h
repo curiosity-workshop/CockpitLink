@@ -337,11 +337,11 @@ namespace cockpitlink
         void processSerial();
         void processFrame(
             const ProtocolFrame& frame);
+        void processRegistration();
         void processControls();
         void resetRegistration();
         void sendHelloAck(
             uint16_t sequence);
-        void sendBehaviorRequests();
         void sendBehaviorRequest(
             Binding& binding);
         void sendSubscribe(
@@ -384,6 +384,10 @@ namespace cockpitlink
         bool connected_ = false;
         uint16_t nextSequence_ = 2;
         uint16_t controlRefreshIntervalMs_ = 0;
+        static constexpr unsigned long
+            registrationRequestIntervalMs_ = 25;
+        unsigned long lastRegistrationRequestAt_ = 0;
+        uint8_t nextRegistrationBindingIndex_ = 0;
 
         static constexpr uint8_t maxBindings_ = 16;
         static constexpr uint8_t maxControlUpdatesPerLoop_ = 3;

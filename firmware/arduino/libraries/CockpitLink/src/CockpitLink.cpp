@@ -732,6 +732,7 @@ namespace cockpitlink
     void CockpitLinkDevice::loop()
     {
         processSerial();
+        processRegistration();
         processControls();
     }
 
@@ -878,7 +879,6 @@ namespace cockpitlink
             resetRegistration();
             sendHelloAck(frame.sequence);
             connected_ = true;
-            sendBehaviorRequests();
         }
         else if (frame.type == COCKPITLINK_MSG_BEHAVIOR_ASSIGNMENT)
         {
@@ -1021,10 +1021,46 @@ namespace cockpitlink
             index;
     }
 
+    void CockpitLinkDevice::processRegistration()
+    {
+        if (!connected_ ||
+            nextRegistrationBindingIndex_ >= bindingCount_)
+        {
+            return;
+        }
+
+        const unsigned long now = millis();
+
+        if (now - lastRegistrationRequestAt_ <
+            registrationRequestIntervalMs_)
+        {
+            return;
+        }
+
+        while (nextRegistrationBindingIndex_ < bindingCount_)
+        {
+            Binding& binding =
+                bindings_[nextRegistrationBindingIndex_++];
+
+            if (binding.requested)
+            {
+                continue;
+            }
+
+            sendBehaviorRequest(binding);
+            lastRegistrationRequestAt_ = now;
+            return;
+        }
+    }
+
     void CockpitLinkDevice::resetRegistration()
     {
         connected_ = false;
         nextControlBindingIndex_ = 0;
+        nextRegistrationBindingIndex_ = 0;
+        lastRegistrationRequestAt_ =
+            millis() -
+            registrationRequestIntervalMs_;
 
         for (uint8_t index = 0;
             index < bindingCount_;
@@ -1081,16 +1117,6 @@ namespace cockpitlink
         if (outputSize > 0)
         {
             Serial.write(output, outputSize);
-        }
-    }
-
-    void CockpitLinkDevice::sendBehaviorRequests()
-    {
-        for (uint8_t index = 0;
-            index < bindingCount_;
-            ++index)
-        {
-            sendBehaviorRequest(bindings_[index]);
         }
     }
 

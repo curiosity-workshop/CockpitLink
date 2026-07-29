@@ -30,6 +30,13 @@ The behavior model defines simulator-neutral concepts:
 Behavior IDs should be stable. Bindings may change by simulator, aircraft, or
 profile.
 
+The host implementation exposes this model through
+`cockpitlink::catalog::BehaviorCatalog`. It parses and validates the base JSON
+catalog, assigns transport handles from catalog order for the current session,
+and resolves typed X-Plane read/write operations, array indices, scaling, and
+write strategies. Protocol handles remain transport details and are not stored
+in catalog data.
+
 The behavior model must account for simulators having different abilities. A
 behavior can be conceptually read/write while a specific simulator binding is
 read-only, command-only, unsupported, or emulated through another operation.
@@ -65,6 +72,10 @@ direct state write. For switch-style hardware, the host should only use a toggle
 command to set state when it can first read the current simulator value and
 determine that a toggle is actually needed.
 
+The X-Plane prototype builds its boolean and numeric binding tables from the
+runtime catalog. Its post-build step copies the base catalog beside the plugin,
+under `catalog/base-behaviors.json`.
+
 ## Transport Layer
 
 The transport layer moves typed messages between host and device. It should not
@@ -85,6 +96,26 @@ The first host skeleton includes:
 - Windows serial byte transport
 - Serial device classification
 - `CockpitLinkProbe`, a console app that lists candidate serial devices
+
+### Host Transport Scheduling
+
+The X-Plane adapter uses `cockpitlink::transport::TransportSession` to keep
+serial work bounded inside each flight-loop callback. The session:
+
+- retains parser state across partial reads;
+- limits read size, read passes, and delivered messages per tick;
+- retains partially written frames across ticks;
+- performs at most one bounded physical write per tick;
+- prioritizes reliable setup/configuration frames;
+- coalesces replaceable streaming frames by behavior handle.
+
+The current X-Plane limits are a 256-byte read buffer, four read passes,
+16 delivered messages, and 64 written bytes per tick. Windows serial writes
+use a 10 ms timeout instead of the earlier 500 ms timeout.
+
+Firmware registration is incremental. After `Hello`, the board emits at most
+one behavior request every 25 ms rather than blocking inside the handshake and
+bursting the entire behavior list.
 
 ## Diagnostic Layer
 

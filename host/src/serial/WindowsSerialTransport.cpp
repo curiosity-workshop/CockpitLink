@@ -120,7 +120,7 @@ namespace cockpitlink::serial
         timeouts.ReadTotalTimeoutMultiplier = 0;
         timeouts.ReadTotalTimeoutConstant = 0;
         timeouts.WriteTotalTimeoutMultiplier = 0;
-        timeouts.WriteTotalTimeoutConstant = 500;
+        timeouts.WriteTotalTimeoutConstant = 10;
 
         return SetCommTimeouts(handle_, &timeouts) != FALSE;
     }

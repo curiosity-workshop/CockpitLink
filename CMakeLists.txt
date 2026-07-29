@@ -43,6 +43,7 @@ if(NOT COCKPITLINK_XPLANE_SDK_PATH AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/../th
 endif()
 
 add_library(CockpitLinkHost
+    host/src/catalog/BehaviorCatalog.cpp
     host/src/logging/SerialTraceLogger.cpp
     host/src/protocol/Frame.cpp
     host/src/protocol/FrameParser.cpp
@@ -51,6 +52,7 @@ add_library(CockpitLinkHost
     host/src/serial/SerialDeviceClassifier.cpp
     host/src/serial/WindowsSerialEnumerator.cpp
     host/src/serial/WindowsSerialTransport.cpp
+    host/src/transport/TransportSession.cpp
 )
 
 target_include_directories(CockpitLinkHost
@@ -94,10 +96,29 @@ add_executable(CockpitLinkCatalogTests
     host/tests/catalog/BehaviorCatalogValidationTests.cpp
 )
 
+target_link_libraries(CockpitLinkCatalogTests
+    PRIVATE
+        CockpitLinkHost
+)
+
 add_test(
     NAME CockpitLinkCatalogTests
     COMMAND CockpitLinkCatalogTests
         ${CMAKE_CURRENT_SOURCE_DIR}/catalog/base-behaviors.json
+)
+
+add_executable(CockpitLinkTransportTests
+    host/tests/transport/TransportSessionTests.cpp
+)
+
+target_link_libraries(CockpitLinkTransportTests
+    PRIVATE
+        CockpitLinkHost
+)
+
+add_test(
+    NAME CockpitLinkTransportTests
+    COMMAND CockpitLinkTransportTests
 )
 
 if(COCKPITLINK_BUILD_XPLANE_PLUGIN)
@@ -141,6 +162,17 @@ if(COCKPITLINK_BUILD_XPLANE_PLUGIN)
             PREFIX ""
             OUTPUT_NAME "CockpitLink"
             SUFFIX ".xpl"
+    )
+
+    add_custom_command(
+        TARGET CockpitLinkXPlanePlugin
+        POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory
+                "$<TARGET_FILE_DIR:CockpitLinkXPlanePlugin>/catalog"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${CMAKE_CURRENT_SOURCE_DIR}/catalog/base-behaviors.json"
+                "$<TARGET_FILE_DIR:CockpitLinkXPlanePlugin>/catalog/base-behaviors.json"
+        COMMENT "Copying CockpitLink behavior catalog"
     )
 
     if(WIN32)
@@ -196,6 +228,11 @@ if(COCKPITLINK_BUILD_XPLANE_PLUGIN)
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
                     "$<TARGET_FILE:CockpitLinkXPlanePlugin>"
                     "${COCKPITLINK_XPLANE_PLUGIN_DEPLOY_DIR}/$<TARGET_FILE_NAME:CockpitLinkXPlanePlugin>"
+            COMMAND ${CMAKE_COMMAND} -E make_directory
+                    "${COCKPITLINK_XPLANE_PLUGIN_DEPLOY_DIR}/catalog"
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                    "${CMAKE_CURRENT_SOURCE_DIR}/catalog/base-behaviors.json"
+                    "${COCKPITLINK_XPLANE_PLUGIN_DEPLOY_DIR}/catalog/base-behaviors.json"
             COMMENT
                     "Deploying CockpitLink.xpl to ${COCKPITLINK_XPLANE_PLUGIN_DEPLOY_DIR}"
         )

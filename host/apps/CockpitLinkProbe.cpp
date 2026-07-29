@@ -1,3 +1,4 @@
+#include <cockpitlink/catalog/BehaviorCatalog.h>
 #include <cockpitlink/logging/SerialTraceLogger.h>
 #include <cockpitlink/serial/SerialDeviceKind.h>
 #include <cockpitlink/serial/WindowsSerialEnumerator.h>
@@ -7,11 +8,13 @@
 #include <cockpitlink/protocol/Payloads.h>
 #include <cockpitlink/protocol/TraceFormatter.h>
 
+#include <array>
 #include <chrono>
 #include <cstddef>
 #include <filesystem>
 #include <span>
 #include <iostream>
+#include <optional>
 #include <thread>
 #include <vector>
 #include <string_view>
@@ -49,95 +52,55 @@ namespace
             kind == SerialDeviceKind::Unknown;
     }
 
-    std::uint16_t behaviorHandle(
-        std::string_view behaviorId)
+    std::optional<cockpitlink::protocol::ValueType> protocolValueType(
+        cockpitlink::catalog::ValueType valueType)
     {
-        if (behaviorId == "lights.beacon")
+        using CatalogType = cockpitlink::catalog::ValueType;
+        using ProtocolType = cockpitlink::protocol::ValueType;
+
+        switch (valueType)
         {
-            return 0;
+        case CatalogType::Boolean:
+            return ProtocolType::Boolean;
+        case CatalogType::Int:
+            return ProtocolType::Int;
+        case CatalogType::Float:
+            return ProtocolType::Float;
+        case CatalogType::String:
+            return ProtocolType::String;
+        case CatalogType::Data:
+            return ProtocolType::Data;
+        case CatalogType::Enum:
+            return ProtocolType::Enum;
         }
 
-        if (behaviorId == "lights.nav")
-        {
-            return 7;
-        }
-
-        if (behaviorId == "lights.strobe")
-        {
-            return 8;
-        }
-
-        if (behaviorId == "engine.1.throttle")
-        {
-            return 1;
-        }
-
-        if (behaviorId == "engine.all.throttle")
-        {
-            return 9;
-        }
-
-        if (behaviorId == "engine.2.throttle")
-        {
-            return 2;
-        }
-
-        if (behaviorId == "engine.1.prop_rpm")
-        {
-            return 3;
-        }
-
-        if (behaviorId == "engine.2.prop_rpm")
-        {
-            return 4;
-        }
-
-        if (behaviorId == "engine.1.mixture")
-        {
-            return 5;
-        }
-
-        if (behaviorId == "engine.2.mixture")
-        {
-            return 6;
-        }
-
-        return 0xffff;
+        return std::nullopt;
     }
 
-    std::string_view behaviorForHandle(
-        std::uint16_t handle)
+    std::optional<std::filesystem::path> findCatalogPath()
     {
-        switch (handle)
+        const std::array candidates{
+            std::filesystem::current_path() /
+                "catalog" / "base-behaviors.json",
+            std::filesystem::current_path() /
+                "CockpitLink" / "catalog" / "base-behaviors.json"
+        };
+
+        for (const auto& candidate : candidates)
         {
-        case 0:
-            return "lights.beacon";
-        case 1:
-            return "engine.1.throttle";
-        case 2:
-            return "engine.2.throttle";
-        case 3:
-            return "engine.1.prop_rpm";
-        case 4:
-            return "engine.2.prop_rpm";
-        case 5:
-            return "engine.1.mixture";
-        case 6:
-            return "engine.2.mixture";
-        case 7:
-            return "lights.nav";
-        case 8:
-            return "lights.strobe";
-        case 9:
-            return "engine.all.throttle";
-        default:
-            return {};
+            if (std::filesystem::exists(candidate))
+            {
+                return candidate;
+            }
         }
+
+        return std::nullopt;
     }
 
     bool tryProbe(
         const cockpitlink::serial::SerialPortInfo& port,
-        cockpitlink::logging::SerialTraceLogger& trace)
+        cockpitlink::logging::SerialTraceLogger& trace,
+        const cockpitlink::catalog::BehaviorCatalog& catalog)
     {
         cockpitlink::serial::WindowsSerialTransport transport{
             port.portName
@@ -253,19 +216,25 @@ namespace
                             if (request)
                             {
                                 const auto assignedHandle =
-                                    behaviorHandle(request->behaviorId);
+                                    catalog.handleFor(request->behaviorId);
+                                const auto* behavior =
+                                    catalog.find(request->behaviorId);
+                                const auto assignedType =
+                                    behavior ?
+                                        protocolValueType(
+                                            behavior->valueType) :
+                                        std::nullopt;
 
-                                if (assignedHandle == 0xffff)
+                                if (!assignedHandle ||
+                                    !behavior ||
+                                    !behavior->xplane ||
+                                    !assignedType)
                                 {
                                     continue;
                                 }
 
                                 const bool isThrottle =
                                     request->behaviorId.starts_with("engine.");
-                                const auto valueType =
-                                    isThrottle ?
-                                        cockpitlink::protocol::ValueType::Int :
-                                        cockpitlink::protocol::ValueType::Boolean;
 
                                 cockpitlink::protocol::Frame assignment{
                                     cockpitlink::protocol::MessageType::BehaviorAssignment,
@@ -273,8 +242,8 @@ namespace
                                     nextSequence++,
                                     cockpitlink::protocol::encodeBehaviorAssignmentPayload({
                                         request->requestId,
-                                        assignedHandle,
-                                        valueType,
+                                        *assignedHandle,
+                                        *assignedType,
                                         cockpitlink::protocol::CapabilityBehaviorIds |
                                             cockpitlink::protocol::CapabilityBinaryValues
                                     })
@@ -288,13 +257,14 @@ namespace
                                 else
                                 {
                                     beaconAssigned = true;
+                                    beaconHandle = *assignedHandle;
                                 }
 
                                 std::cout
                                     << "  assigned "
                                     << request->behaviorId
                                     << " -> handle "
-                                    << assignedHandle
+                                    << *assignedHandle
                                     << "\n";
                             }
                         }
@@ -324,18 +294,18 @@ namespace
                                 cockpitlink::protocol::decodeValueUpdatePayload(
                                     frame.payload);
 
-                            const auto behavior =
+                            const auto* behavior =
                                 update ?
-                                    behaviorForHandle(update->handle) :
-                                    std::string_view{};
+                                    catalog.atHandle(update->handle) :
+                                    nullptr;
 
                             if (update &&
-                                !behavior.empty())
+                                behavior)
                             {
                                 ++throttleUpdatesReceived;
                                 std::cout
                                     << "  received "
-                                    << behavior
+                                    << behavior->id
                                     << ": "
                                     << cockpitlink::protocol::formatTraceLine(
                                         frame,
@@ -416,6 +386,35 @@ namespace
 
 int main()
 {
+    const auto catalogPath = findCatalogPath();
+
+    if (!catalogPath)
+    {
+        std::cerr
+            << "CockpitLink catalog not found. Run the probe from the "
+               "repository root or its parent.\n";
+        return 1;
+    }
+
+    std::vector<std::string> catalogErrors;
+    const auto catalog =
+        cockpitlink::catalog::loadBehaviorCatalog(
+            *catalogPath,
+            catalogErrors);
+
+    if (!catalog)
+    {
+        std::cerr
+            << "CockpitLink catalog could not be loaded:\n";
+
+        for (const auto& error : catalogErrors)
+        {
+            std::cerr << "  " << error << '\n';
+        }
+
+        return 1;
+    }
+
     const std::filesystem::path tracePath =
         std::filesystem::current_path() /
         "CockpitLink" /
@@ -435,6 +434,11 @@ int main()
 
     std::cout
         << "CockpitLink probe\n"
+        << "Catalog: "
+        << catalog->name()
+        << " ("
+        << catalog->behaviors().size()
+        << " behaviors)\n"
         << "Serial trace: "
         << trace.path().string()
         << "\n"
@@ -460,7 +464,7 @@ int main()
     {
         if (shouldProbe(port.kind))
         {
-            tryProbe(port, trace);
+        tryProbe(port, trace, *catalog);
         }
     }
 

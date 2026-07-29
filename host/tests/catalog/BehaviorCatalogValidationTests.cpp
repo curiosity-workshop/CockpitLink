@@ -1,12 +1,8 @@
-#include <algorithm>
+#include <cockpitlink/catalog/BehaviorCatalog.h>
+
 #include <filesystem>
 #include <fstream>
 #include <iostream>
-#include <optional>
-#include <regex>
-#include <set>
-#include <sstream>
-#include <string>
 #include <string_view>
 #include <vector>
 
@@ -19,195 +15,9 @@ namespace
         if (!condition)
         {
             std::cerr << message << '\n';
-            return false;
         }
 
-        return true;
-    }
-
-    std::optional<std::string> readFile(
-        const std::filesystem::path& path)
-    {
-        std::ifstream input{ path };
-
-        if (!input)
-        {
-            return std::nullopt;
-        }
-
-        std::ostringstream buffer;
-        buffer << input.rdbuf();
-        return buffer.str();
-    }
-
-    bool containsField(
-        std::string_view text,
-        std::string_view field)
-    {
-        const std::string needle =
-            "\"" + std::string{ field } + "\"";
-        return text.find(needle) != std::string_view::npos;
-    }
-
-    std::optional<std::size_t> findArrayStart(
-        std::string_view text,
-        std::string_view field)
-    {
-        const std::string needle =
-            "\"" + std::string{ field } + "\"";
-        const auto fieldOffset =
-            text.find(needle);
-
-        if (fieldOffset == std::string_view::npos)
-        {
-            return std::nullopt;
-        }
-
-        const auto colonOffset =
-            text.find(':', fieldOffset + needle.size());
-
-        if (colonOffset == std::string_view::npos)
-        {
-            return std::nullopt;
-        }
-
-        const auto bracketOffset =
-            text.find('[', colonOffset + 1);
-
-        if (bracketOffset == std::string_view::npos)
-        {
-            return std::nullopt;
-        }
-
-        return bracketOffset;
-    }
-
-    std::vector<std::string> extractArrayObjects(
-        std::string_view text,
-        std::string_view field)
-    {
-        std::vector<std::string> objects;
-        const auto arrayStart =
-            findArrayStart(text, field);
-
-        if (!arrayStart)
-        {
-            return objects;
-        }
-
-        bool inString = false;
-        bool escaped = false;
-        int arrayDepth = 0;
-        int objectDepth = 0;
-        std::size_t objectStart = 0;
-
-        for (std::size_t offset = *arrayStart;
-            offset < text.size();
-            ++offset)
-        {
-            const char current =
-                text[offset];
-
-            if (inString)
-            {
-                if (escaped)
-                {
-                    escaped = false;
-                }
-                else if (current == '\\')
-                {
-                    escaped = true;
-                }
-                else if (current == '"')
-                {
-                    inString = false;
-                }
-
-                continue;
-            }
-
-            if (current == '"')
-            {
-                inString = true;
-                continue;
-            }
-
-            if (current == '[')
-            {
-                ++arrayDepth;
-                continue;
-            }
-
-            if (current == ']')
-            {
-                --arrayDepth;
-
-                if (arrayDepth == 0)
-                {
-                    break;
-                }
-
-                continue;
-            }
-
-            if (arrayDepth != 1)
-            {
-                continue;
-            }
-
-            if (current == '{')
-            {
-                if (objectDepth == 0)
-                {
-                    objectStart = offset;
-                }
-
-                ++objectDepth;
-            }
-            else if (current == '}')
-            {
-                --objectDepth;
-
-                if (objectDepth == 0)
-                {
-                    objects.emplace_back(
-                        text.substr(
-                            objectStart,
-                            offset - objectStart + 1));
-                }
-            }
-        }
-
-        return objects;
-    }
-
-    std::optional<std::string> stringField(
-        std::string_view object,
-        std::string_view field)
-    {
-        const std::regex expression{
-            "\"" + std::string{ field } + "\"\\s*:\\s*\"([^\"]*)\""
-        };
-        std::cmatch match;
-
-        if (!std::regex_search(
-                object.data(),
-                object.data() + object.size(),
-                match,
-                expression))
-        {
-            return std::nullopt;
-        }
-
-        return match[1].str();
-    }
-
-    bool isAllowed(
-        const std::set<std::string>& allowed,
-        const std::optional<std::string>& value)
-    {
-        return value &&
-            allowed.find(*value) != allowed.end();
+        return condition;
     }
 }
 
@@ -222,14 +32,19 @@ int main(
         return 1;
     }
 
+    std::vector<std::string> errors;
     const auto catalog =
-        readFile(argv[1]);
-
+        cockpitlink::catalog::loadBehaviorCatalog(argv[1], errors);
     bool passed = true;
+
+    for (const auto& error : errors)
+    {
+        std::cerr << error << '\n';
+    }
 
     passed &= expect(
         catalog.has_value(),
-        "catalog file should be readable");
+        "base catalog should load");
 
     if (!catalog)
     {
@@ -237,128 +52,84 @@ int main(
     }
 
     passed &= expect(
-        containsField(*catalog, "catalogVersion"),
-        "catalogVersion is required");
+        catalog->version() == 1,
+        "catalog version should be parsed");
     passed &= expect(
-        containsField(*catalog, "name"),
-        "catalog name is required");
+        catalog->name() == "CockpitLink Base Behaviors",
+        "catalog name should be parsed");
     passed &= expect(
-        containsField(*catalog, "behaviors"),
-        "behaviors array is required");
+        catalog->behaviors().size() == 14,
+        "all base behaviors should be parsed");
 
-    const auto behaviors =
-        extractArrayObjects(*catalog, "behaviors");
-
+    const auto* beacon = catalog->find("lights.beacon");
     passed &= expect(
-        !behaviors.empty(),
-        "catalog should contain at least one behavior");
+        beacon != nullptr,
+        "lights.beacon should resolve");
+    passed &= expect(
+        beacon &&
+            beacon->valueType ==
+                cockpitlink::catalog::ValueType::Boolean,
+        "lights.beacon should be boolean");
+    passed &= expect(
+        beacon && beacon->xplane &&
+            beacon->xplane->read &&
+            beacon->xplane->read->dataRef ==
+                "sim/cockpit/electrical/beacon_lights_on",
+        "beacon X-Plane read dataref should resolve");
+    passed &= expect(
+        beacon && beacon->xplane &&
+            beacon->xplane->writeStrategy ==
+                cockpitlink::catalog::WriteStrategy::
+                    SetViaToggleWhenKnown,
+        "beacon write strategy should resolve");
 
-    const std::regex behaviorIdPattern{
-        "^[a-z][a-z0-9_]*(\\.[a-z0-9_]+)+$"
-    };
-    const std::set<std::string> allowedKinds{
-        "toggle",
-        "momentary",
-        "axis",
-        "display",
-        "enum",
-        "data"
-    };
-    const std::set<std::string> allowedValueTypes{
-        "bool",
-        "int",
-        "float",
-        "string",
-        "data",
-        "enum"
-    };
-    const std::set<std::string> allowedCapabilities{
-        "native",
-        "unsupported",
-        "emulatedByCommand",
-        "emulatedByReadWrite",
-        "readOnly",
-        "writeOnly"
-    };
+    const auto* throttle = catalog->find("engine.1.throttle");
+    passed &= expect(
+        throttle && throttle->rangeMinimum == 0.0 &&
+            throttle->rangeMaximum == 100.0,
+        "throttle canonical range should resolve");
+    passed &= expect(
+        throttle && throttle->xplane &&
+            throttle->xplane->write &&
+            throttle->xplane->write->index == 0,
+        "throttle array index should resolve");
+    passed &= expect(
+        throttle && throttle->xplane &&
+            throttle->xplane->write &&
+            throttle->xplane->write->scale &&
+            throttle->xplane->write->scale->toMax == 1.0,
+        "throttle write scale should resolve");
 
-    std::set<std::string> behaviorIds;
+    const auto handle = catalog->handleFor("flight.roll");
+    passed &= expect(
+        handle && catalog->atHandle(*handle) &&
+            catalog->atHandle(*handle)->id == "flight.roll",
+        "catalog handles should round-trip");
+    passed &= expect(
+        !catalog->handleFor("missing.behavior"),
+        "unknown behaviors should not get handles");
 
-    for (const auto& behavior : behaviors)
+    const auto invalidPath =
+        std::filesystem::temp_directory_path() /
+        "cockpitlink-invalid-catalog.json";
     {
-        const auto id =
-            stringField(behavior, "id");
-        const std::string label =
-            id ? *id : "<missing id>";
-
-        passed &= expect(
-            id.has_value(),
-            "behavior id is required");
-        passed &= expect(
-            id && std::regex_match(*id, behaviorIdPattern),
-            "behavior id must be lowercase dot-separated: " + label);
-        passed &= expect(
-            id && id->find('[') == std::string::npos &&
-                id->find(']') == std::string::npos,
-            "behavior id must not expose array syntax: " + label);
-        passed &= expect(
-            id && behaviorIds.insert(*id).second,
-            "behavior id must be unique: " + label);
-
-        passed &= expect(
-            containsField(behavior, "label"),
-            "behavior label is required: " + label);
-        passed &= expect(
-            isAllowed(allowedKinds, stringField(behavior, "kind")),
-            "behavior kind is invalid: " + label);
-        passed &= expect(
-            isAllowed(allowedValueTypes, stringField(behavior, "valueType")),
-            "behavior valueType is invalid: " + label);
-
-        passed &= expect(
-            containsField(behavior, "desiredCapability"),
-            "desiredCapability is required: " + label);
-        passed &= expect(
-            containsField(behavior, "read") &&
-                containsField(behavior, "write") &&
-                containsField(behavior, "command"),
-            "read/write/command direction keys are required: " + label);
-        passed &= expect(
-            containsField(behavior, "defaultUpdate"),
-            "defaultUpdate is required: " + label);
-        passed &= expect(
-            containsField(behavior, "rateMs") &&
-                containsField(behavior, "bucket"),
-            "defaultUpdate rateMs and bucket are required: " + label);
-        passed &= expect(
-            containsField(behavior, "bindings"),
-            "bindings are required: " + label);
-
-        const std::regex capabilityPattern{
-            "\"(read|write|command)\"\\s*:\\s*\"([^\"]+)\""
-        };
-        const auto begin =
-            std::sregex_iterator{
-                behavior.begin(),
-                behavior.end(),
-                capabilityPattern
-            };
-        const auto end =
-            std::sregex_iterator{};
-
-        for (auto iterator = begin;
-            iterator != end;
-            ++iterator)
-        {
-            const std::string capability =
-                (*iterator)[2].str();
-
-            passed &= expect(
-                allowedCapabilities.find(capability) !=
-                    allowedCapabilities.end(),
-                "binding capability is invalid on " + label +
-                    ": " + capability);
-        }
+        std::ofstream invalid{ invalidPath };
+        invalid << R"({"catalogVersion":1,"name":"bad","behaviors":[)"
+                   R"({"id":"Not Valid"}]})";
     }
+
+    errors.clear();
+    passed &= expect(
+        !cockpitlink::catalog::loadBehaviorCatalog(
+            invalidPath,
+            errors),
+        "invalid catalogs should be rejected");
+    passed &= expect(
+        !errors.empty(),
+        "invalid catalogs should return diagnostics");
+
+    std::error_code removeError;
+    std::filesystem::remove(invalidPath, removeError);
 
     return passed ? 0 : 1;
 }

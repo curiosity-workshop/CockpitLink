@@ -1,9 +1,11 @@
+#include <cockpitlink/catalog/BehaviorCatalog.h>
 #include <cockpitlink/protocol/Frame.h>
 #include <cockpitlink/protocol/FrameParser.h>
 #include <cockpitlink/protocol/Payloads.h>
 #include <cockpitlink/serial/SerialDeviceKind.h>
 #include <cockpitlink/serial/WindowsSerialEnumerator.h>
 #include <cockpitlink/serial/WindowsSerialTransport.h>
+#include <cockpitlink/transport/TransportSession.h>
 
 #include <XPLMDataAccess.h>
 #include <XPLMMenus.h>
@@ -17,6 +19,8 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <deque>
+#include <filesystem>
 #include <iomanip>
 #include <memory>
 #include <optional>
@@ -44,34 +48,20 @@ namespace
 
     struct BoolBinding
     {
-        std::string_view behaviorId;
+        std::string behaviorId;
         std::uint16_t handle = 0;
-        std::string_view dataRef;
+        std::string readDataRef;
+        std::string writeDataRef;
+        cockpitlink::catalog::WriteStrategy writeStrategy =
+            cockpitlink::catalog::WriteStrategy::Unsupported;
+        std::string toggleCommand;
     };
-
-    constexpr std::array<BoolBinding, 3> boolBindings{ {
-        {
-            "lights.beacon",
-            0,
-            "sim/cockpit/electrical/beacon_lights_on"
-        },
-        {
-            "lights.nav",
-            7,
-            "sim/cockpit/electrical/nav_lights_on"
-        },
-        {
-            "lights.strobe",
-            8,
-            "sim/cockpit/electrical/strobe_lights_on"
-        }
-    } };
 
     struct PercentAxisBinding
     {
-        std::string_view behaviorId;
+        std::string behaviorId;
         std::uint16_t handle = 0;
-        std::string_view dataRef;
+        std::string dataRef;
         int xplaneElement = 0;
         int xplaneElementCount = 1;
         int inputMinimum = 0;
@@ -81,109 +71,9 @@ namespace
         bool xplaneArray = true;
     };
 
-    constexpr std::array<PercentAxisBinding, 9> percentAxisBindings{ {
-        {
-            "engine.all.throttle",
-            9,
-            "sim/cockpit2/engine/actuators/throttle_ratio",
-            0,
-            2,
-            0,
-            100,
-            0.0f,
-            1.0f
-        },
-        {
-            "engine.1.throttle",
-            1,
-            "sim/cockpit2/engine/actuators/throttle_ratio",
-            0,
-            1,
-            0,
-            100,
-            0.0f,
-            1.0f
-        },
-        {
-            "engine.2.throttle",
-            2,
-            "sim/cockpit2/engine/actuators/throttle_ratio",
-            1,
-            1,
-            0,
-            100,
-            0.0f,
-            1.0f
-        },
-        {
-            "engine.1.prop_rpm",
-            3,
-            "sim/cockpit2/engine/actuators/prop_rotation_speed_rad_sec",
-            0,
-            1,
-            0,
-            100,
-            73.29f,
-            282.70f
-        },
-        {
-            "engine.2.prop_rpm",
-            4,
-            "sim/cockpit2/engine/actuators/prop_rotation_speed_rad_sec",
-            1,
-            1,
-            0,
-            100,
-            73.29f,
-            282.70f
-        },
-        {
-            "engine.1.mixture",
-            5,
-            "sim/cockpit2/engine/actuators/mixture_ratio",
-            0,
-            1,
-            0,
-            100,
-            0.0f,
-            1.0f
-        },
-        {
-            "engine.2.mixture",
-            6,
-            "sim/cockpit2/engine/actuators/mixture_ratio",
-            1,
-            1,
-            0,
-            100,
-            0.0f,
-            1.0f
-        },
-        {
-            "flight.roll",
-            10,
-            "sim/cockpit2/controls/yoke_roll_ratio",
-            0,
-            1,
-            -100,
-            100,
-            -1.0f,
-            1.0f,
-            false
-        },
-        {
-            "flight.pitch",
-            11,
-            "sim/cockpit2/controls/yoke_pitch_ratio",
-            0,
-            1,
-            -100,
-            100,
-            -1.0f,
-            1.0f,
-            false
-        }
-    } };
+    std::vector<BoolBinding> boolBindings;
+    std::vector<PercentAxisBinding> percentAxisBindings;
+    constexpr std::size_t maxBehaviorHandles = 256;
     constexpr auto baudRate = 115200u;
     constexpr auto openSettleDelay =
         std::chrono::seconds{ 3 };
@@ -191,12 +81,159 @@ namespace
         std::chrono::milliseconds{ 250 };
     constexpr auto portTimeout =
         std::chrono::seconds{ 6 };
+    constexpr auto assignmentInterval =
+        std::chrono::milliseconds{ 100 };
 
     void debugLog(
         std::string_view message)
     {
         const std::string stableMessage{ message };
         XPLMDebugString(stableMessage.c_str());
+    }
+
+    bool loadCatalogBindings()
+    {
+        std::array<char, 2048> pluginPath{};
+        XPLMGetPluginInfo(
+            XPLMGetMyID(),
+            nullptr,
+            pluginPath.data(),
+            nullptr,
+            nullptr);
+
+        const std::array candidates{
+            std::filesystem::path{ pluginPath.data() }.
+                parent_path() / "catalog" / "base-behaviors.json",
+            std::filesystem::current_path() /
+                "catalog" / "base-behaviors.json",
+            std::filesystem::current_path() /
+                "CockpitLink" / "catalog" / "base-behaviors.json"
+        };
+
+        std::optional<cockpitlink::catalog::BehaviorCatalog> catalog;
+        std::vector<std::string> errors;
+        std::filesystem::path loadedPath;
+
+        for (const auto& candidate : candidates)
+        {
+            if (!std::filesystem::exists(candidate))
+            {
+                continue;
+            }
+
+            catalog =
+                cockpitlink::catalog::loadBehaviorCatalog(
+                    candidate,
+                    errors);
+
+            if (catalog)
+            {
+                loadedPath = candidate;
+                break;
+            }
+        }
+
+        if (!catalog)
+        {
+            debugLog(
+                "CockpitLink: behavior catalog could not be loaded.\n");
+
+            for (const auto& error : errors)
+            {
+                debugLog("CockpitLink: catalog: " + error + "\n");
+            }
+
+            return false;
+        }
+
+        boolBindings.clear();
+        percentAxisBindings.clear();
+
+        for (const auto& behavior : catalog->behaviors())
+        {
+            const auto handle = catalog->handleFor(behavior.id);
+
+            if (!handle ||
+                *handle >= maxBehaviorHandles ||
+                !behavior.xplane)
+            {
+                continue;
+            }
+
+            const auto& xplane = *behavior.xplane;
+
+            if (behavior.valueType ==
+                    cockpitlink::catalog::ValueType::Boolean &&
+                xplane.read)
+            {
+                BoolBinding binding;
+                binding.behaviorId = behavior.id;
+                binding.handle = *handle;
+                binding.readDataRef = xplane.read->dataRef;
+                binding.writeStrategy =
+                    xplane.writeStrategy.value_or(
+                        cockpitlink::catalog::WriteStrategy::Unsupported);
+                binding.toggleCommand =
+                    xplane.toggleCommand.value_or("");
+
+                if (xplane.write)
+                {
+                    binding.writeDataRef = xplane.write->dataRef;
+                }
+
+                boolBindings.push_back(std::move(binding));
+                continue;
+            }
+
+            if (behavior.valueType !=
+                    cockpitlink::catalog::ValueType::Int ||
+                !xplane.write ||
+                !xplane.write->scale)
+            {
+                continue;
+            }
+
+            const auto& operation = *xplane.write;
+            const auto& scale = *operation.scale;
+            PercentAxisBinding binding;
+            binding.behaviorId = behavior.id;
+            binding.handle = *handle;
+            binding.dataRef = operation.dataRef;
+            binding.xplaneElement =
+                operation.index.value_or(
+                    operation.indices.empty() ?
+                        0 :
+                        operation.indices.front());
+            binding.xplaneElementCount =
+                operation.indices.empty() ?
+                    1 :
+                    static_cast<int>(operation.indices.size());
+            binding.inputMinimum =
+                static_cast<int>(scale.fromMin);
+            binding.inputMaximum =
+                static_cast<int>(scale.fromMax);
+            binding.outputMinimum =
+                static_cast<float>(scale.toMin);
+            binding.outputMaximum =
+                static_cast<float>(scale.toMax);
+            binding.xplaneArray =
+                operation.type == "float_array";
+            percentAxisBindings.push_back(std::move(binding));
+        }
+
+        std::ostringstream message;
+        message
+            << "CockpitLink: loaded "
+            << catalog->name()
+            << " from "
+            << loadedPath.string()
+            << " ("
+            << boolBindings.size()
+            << " bool, "
+            << percentAxisBindings.size()
+            << " axis bindings).\n";
+        debugLog(message.str());
+        return true;
     }
 
     bool shouldProbe(
@@ -349,6 +386,14 @@ namespace
         }
 
     private:
+        struct PendingBehaviorAssignment
+        {
+            std::uint8_t requestId = 0;
+            std::uint16_t handle = 0;
+            cockpitlink::protocol::ValueType valueType =
+                cockpitlink::protocol::ValueType::Boolean;
+        };
+
         static void menuHandler(
             void* menuRef,
             void* itemRef)
@@ -476,8 +521,8 @@ namespace
                 transport_->close();
             }
 
+            session_.reset();
             transport_.reset();
-            parser_.reset();
             connectedPort_.clear();
             state_ = ConnectionState::Idle;
             helloAckReceived_ = false;
@@ -487,6 +532,8 @@ namespace
             hasSentBoolValue_.fill(false);
             boolNextDue_.fill({});
             lastAxisPercent_.fill(-1);
+            pendingAssignments_.clear();
+            nextAssignmentAt_ = {};
         }
 
         void tick()
@@ -517,6 +564,8 @@ namespace
                 tickSubscriptions(now);
                 break;
             }
+
+            sendNextBehaviorAssignment(now);
         }
 
         void startNextPort(
@@ -548,6 +597,16 @@ namespace
                 return;
             }
 
+            session_ =
+                std::make_unique<
+                    cockpitlink::transport::TransportSession>(
+                    *transport_,
+                    cockpitlink::transport::TransportSessionOptions{
+                        .readBufferSize = 256,
+                        .maximumReadPasses = 4,
+                        .maximumMessagesPerTick = 16,
+                        .maximumWriteBytesPerTick = 64
+                    });
             connectedPort_ = portName;
             state_ = ConnectionState::WaitingForSettle;
             nextActionAt_ = now + openSettleDelay;
@@ -601,37 +660,19 @@ namespace
 
         void readConnectedPort()
         {
-            if (!transport_ || !transport_->isOpen())
+            if (!transport_ ||
+                !transport_->isOpen() ||
+                !session_)
             {
                 return;
             }
 
-            std::array<std::byte, 512> buffer{};
-            constexpr int maximumReadPasses = 16;
+            const auto tick =
+                session_->tick();
 
-            for (int pass = 0;
-                pass < maximumReadPasses;
-                ++pass)
+            for (const auto& frame : tick.frames)
             {
-                const std::size_t bytesRead =
-                    transport_->read(buffer);
-
-                if (bytesRead == 0)
-                {
-                    return;
-                }
-
-                const auto frames =
-                    parser_.push(
-                        std::span<const std::byte>{
-                            buffer.data(),
-                            bytesRead
-                        });
-
-                for (const auto& frame : frames)
-                {
-                    handleFrame(frame);
-                }
+                handleFrame(frame);
             }
         }
 
@@ -738,7 +779,7 @@ namespace
             if (const auto* axis =
                 percentAxisByBehaviorId(request->behaviorId))
             {
-                sendBehaviorAssignment(
+                queueBehaviorAssignment(
                     request->requestId,
                     axis->handle,
                     cockpitlink::protocol::ValueType::Int);
@@ -754,7 +795,7 @@ namespace
             else if (const auto* binding =
                 boolBindingByBehaviorId(request->behaviorId))
             {
-                sendBehaviorAssignment(
+                queueBehaviorAssignment(
                     request->requestId,
                     binding->handle,
                     cockpitlink::protocol::ValueType::Boolean);
@@ -804,7 +845,7 @@ namespace
             if (dataRef == nullptr)
             {
                 const std::string dataRefName{
-                    binding.dataRef
+                    binding.readDataRef
                 };
                 dataRef =
                     XPLMFindDataRef(dataRefName.c_str());
@@ -816,7 +857,7 @@ namespace
                         << "CockpitLink: bool dataref not found for "
                         << binding.behaviorId
                         << ": "
-                        << binding.dataRef
+                        << binding.readDataRef
                         << ".\n";
                     debugLog(message.str());
                     return;
@@ -837,14 +878,16 @@ namespace
                 return;
             }
 
-            sendFrame({
-                cockpitlink::protocol::MessageType::ValueUpdate,
-                0,
-                nextSequence_++,
-                cockpitlink::protocol::encodeBoolValueUpdatePayload(
-                    binding.handle,
-                    value)
-            });
+            queueLatestFrame(
+                binding.handle,
+                {
+                    cockpitlink::protocol::MessageType::ValueUpdate,
+                    0,
+                    nextSequence_++,
+                    cockpitlink::protocol::encodeBoolValueUpdatePayload(
+                        binding.handle,
+                        value)
+                });
 
             lastBoolValue_[binding.handle] = value;
             hasSentBoolValue_[binding.handle] = true;
@@ -985,7 +1028,9 @@ namespace
             if (dataRef == nullptr)
             {
                 const std::string dataRefName{
-                    binding.dataRef
+                    !binding.writeDataRef.empty() ?
+                        binding.writeDataRef :
+                        binding.readDataRef
                 };
                 dataRef =
                     XPLMFindDataRef(dataRefName.c_str());
@@ -997,16 +1042,51 @@ namespace
                         << "CockpitLink: bool dataref not found for "
                         << binding.behaviorId
                         << ": "
-                        << binding.dataRef
+                        << dataRefName
                         << ".\n";
                     debugLog(message.str());
                     return;
                 }
             }
 
-            XPLMSetDatai(
-                dataRef,
-                value ? 1 : 0);
+            using cockpitlink::catalog::WriteStrategy;
+
+            if (binding.writeStrategy == WriteStrategy::DirectSet)
+            {
+                XPLMSetDatai(
+                    dataRef,
+                    value ? 1 : 0);
+            }
+            else if (binding.writeStrategy ==
+                WriteStrategy::SetViaToggleWhenKnown)
+            {
+                const bool currentValue =
+                    XPLMGetDatai(dataRef) != 0;
+
+                if (currentValue != value)
+                {
+                    const auto command =
+                        XPLMFindCommand(
+                            binding.toggleCommand.c_str());
+
+                    if (command == nullptr)
+                    {
+                        debugLog(
+                            "CockpitLink: toggle command not found for " +
+                            binding.behaviorId + ".\n");
+                        return;
+                    }
+
+                    XPLMCommandOnce(command);
+                }
+            }
+            else
+            {
+                debugLog(
+                    "CockpitLink: behavior is not writable: " +
+                    binding.behaviorId + ".\n");
+                return;
+            }
 
             lastBoolValue_[binding.handle] = value;
             hasSentBoolValue_[binding.handle] = true;
@@ -1097,19 +1177,43 @@ namespace
             });
         }
 
-        void sendBehaviorAssignment(
+        void queueBehaviorAssignment(
             std::uint8_t requestId,
             std::uint16_t handle,
             cockpitlink::protocol::ValueType valueType)
         {
+            pendingAssignments_.push_back({
+                requestId,
+                handle,
+                valueType
+            });
+        }
+
+        void sendNextBehaviorAssignment(
+            std::chrono::steady_clock::time_point now)
+        {
+            if (pendingAssignments_.empty() ||
+                !transport_ ||
+                !transport_->isOpen() ||
+                now < nextAssignmentAt_)
+            {
+                return;
+            }
+
+            const auto assignment =
+                pendingAssignments_.front();
+            pendingAssignments_.pop_front();
+            nextAssignmentAt_ =
+                now + assignmentInterval;
+
             sendFrame({
                 cockpitlink::protocol::MessageType::BehaviorAssignment,
                 0,
                 nextSequence_++,
                 cockpitlink::protocol::encodeBehaviorAssignmentPayload({
-                    requestId,
-                    handle,
-                    valueType,
+                    assignment.requestId,
+                    assignment.handle,
+                    assignment.valueType,
                     cockpitlink::protocol::CapabilityBehaviorIds |
                         cockpitlink::protocol::CapabilityBinaryValues
                 })
@@ -1119,14 +1223,24 @@ namespace
         void sendFrame(
             const cockpitlink::protocol::Frame& frame)
         {
-            if (!transport_ || !transport_->isOpen())
+            if (!session_)
             {
                 return;
             }
 
-            const auto bytes =
-                cockpitlink::protocol::encodeFrame(frame);
-            transport_->write(bytes);
+            session_->queueReliable(frame);
+        }
+
+        void queueLatestFrame(
+            std::uint16_t key,
+            const cockpitlink::protocol::Frame& frame)
+        {
+            if (!session_)
+            {
+                return;
+            }
+
+            session_->queueLatest(key, frame);
         }
 
         cockpitlink::serial::WindowsSerialEnumerator enumerator_;
@@ -1134,7 +1248,8 @@ namespace
         std::size_t portIndex_ = 0;
         std::unique_ptr<cockpitlink::serial::WindowsSerialTransport>
             transport_;
-        cockpitlink::protocol::FrameParser parser_;
+        std::unique_ptr<cockpitlink::transport::TransportSession>
+            session_;
         ConnectionState state_ = ConnectionState::Idle;
         std::chrono::steady_clock::time_point nextActionAt_{};
         std::chrono::steady_clock::time_point portDeadline_{};
@@ -1143,7 +1258,8 @@ namespace
         bool helloAckReceived_ = false;
         int percentAxisAssignments_ = 0;
         int beaconAssignments_ = 0;
-        static constexpr std::size_t maxBehaviorHandle_ = 16;
+        static constexpr std::size_t maxBehaviorHandle_ =
+            maxBehaviorHandles;
         std::array<bool, maxBehaviorHandle_> boolSubscribed_{};
         std::array<bool, maxBehaviorHandle_> lastBoolValue_{};
         std::array<bool, maxBehaviorHandle_> hasSentBoolValue_{};
@@ -1163,6 +1279,8 @@ namespace
             -1
         };
         std::array<XPLMDataRef, maxBehaviorHandle_> axisDataRefs_{};
+        std::deque<PendingBehaviorAssignment> pendingAssignments_;
+        std::chrono::steady_clock::time_point nextAssignmentAt_{};
         XPLMMenuID menu_ = nullptr;
         int pluginsMenuItemIndex_ = -1;
     };
@@ -1194,6 +1312,11 @@ extern "C"
         copyPluginString(outName, "CockpitLink");
         copyPluginString(outSig, "com.cockpitlink.xplane");
         copyPluginString(outDesc, "CockpitLink X-Plane behavior bridge.");
+
+        if (!loadCatalogBindings())
+        {
+            return 0;
+        }
 
         runtime =
             std::make_unique<CockpitLinkXPlaneRuntime>();

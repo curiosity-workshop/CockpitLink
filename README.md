@@ -26,7 +26,8 @@ simulation targets.
 - `docs/behavior-catalog.md` describes the behavior database format.
 - `docs/protocol-v2.md` sketches the binary wire protocol.
 - `docs/arduino-api.md` sketches the intended Arduino user experience.
-- `catalog/base-behaviors.json` is a small starter behavior catalog.
+- `catalog/base-behaviors.json` is the runtime behavior catalog used by the
+  probe and X-Plane adapter.
 - `firmware/arduino/libraries/CockpitLink` contains the starter Arduino
   library shell.
 
@@ -45,6 +46,10 @@ The current host probe app lists candidate serial ports:
 ```powershell
 out/build/cockpitlink-Debug/CockpitLinkProbe.exe
 ```
+
+Run the probe from either the repository root or its parent so it can locate
+`catalog/base-behaviors.json`. It validates the catalog at startup and resolves
+device behavior requests, protocol value types, and handles from it.
 
 If a board is flashed with the CockpitLink `ButtonBox` example, the probe will
 send a binary `Hello` frame and should receive a `HelloAck` containing the
