@@ -1,5 +1,7 @@
 # CockpitLink
 
+***EXPERIMENTAL***
+
 CockpitLink is a scratch-built successor concept for cockpit hardware that
 speaks in simulator behaviors instead of simulator-specific implementation
 details.
