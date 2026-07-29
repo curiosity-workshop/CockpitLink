@@ -1,0 +1,662 @@
+{
+  "catalogVersion": 1,
+  "name": "CockpitLink Base Behaviors",
+  "behaviors": [
+    {
+      "id": "lights.beacon",
+      "label": "Beacon lights",
+      "kind": "toggle",
+      "valueType": "bool",
+      "desiredCapability": {
+        "read": true,
+        "write": true,
+        "command": true
+      },
+      "defaultUpdate": {
+        "rateMs": 100,
+        "bucket": 1
+      },
+      "bindings": {
+        "xplane": {
+          "default": {
+            "capability": {
+              "read": "native",
+              "write": "emulatedByCommand",
+              "command": "native"
+            },
+            "read": {
+              "dataref": "sim/cockpit/electrical/beacon_lights_on",
+              "type": "int"
+            },
+            "write": {
+              "strategy": "setViaToggleWhenKnown",
+              "requiresRead": true,
+              "toggleCommand": "sim/lights/beacon_lights_toggle",
+              "trueValue": 1,
+              "falseValue": 0
+            }
+          }
+        },
+        "msfs": {
+          "default": {
+            "capability": {
+              "read": "native",
+              "write": "unsupported",
+              "command": "native"
+            },
+            "notes": "Illustrative placeholder showing that simulator capabilities can differ."
+          }
+        }
+      }
+    },
+    {
+      "id": "lights.nav",
+      "label": "Navigation lights",
+      "kind": "toggle",
+      "valueType": "bool",
+      "desiredCapability": {
+        "read": true,
+        "write": true,
+        "command": false
+      },
+      "defaultUpdate": {
+        "rateMs": 100,
+        "bucket": 1
+      },
+      "bindings": {
+        "xplane": {
+          "default": {
+            "capability": {
+              "read": "native",
+              "write": "native",
+              "command": "unsupported"
+            },
+            "read": {
+              "dataref": "sim/cockpit/electrical/nav_lights_on",
+              "type": "int"
+            },
+            "write": {
+              "strategy": "directSet",
+              "dataref": "sim/cockpit/electrical/nav_lights_on",
+              "type": "int",
+              "trueValue": 1,
+              "falseValue": 0
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "lights.strobe",
+      "label": "Strobe lights",
+      "kind": "toggle",
+      "valueType": "bool",
+      "desiredCapability": {
+        "read": true,
+        "write": true,
+        "command": false
+      },
+      "defaultUpdate": {
+        "rateMs": 100,
+        "bucket": 1
+      },
+      "bindings": {
+        "xplane": {
+          "default": {
+            "capability": {
+              "read": "native",
+              "write": "native",
+              "command": "unsupported"
+            },
+            "read": {
+              "dataref": "sim/cockpit/electrical/strobe_lights_on",
+              "type": "int"
+            },
+            "write": {
+              "strategy": "directSet",
+              "dataref": "sim/cockpit/electrical/strobe_lights_on",
+              "type": "int",
+              "trueValue": 1,
+              "falseValue": 0
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "gear.handle",
+      "label": "Landing gear handle",
+      "kind": "toggle",
+      "valueType": "bool",
+      "desiredCapability": {
+        "read": true,
+        "write": true,
+        "command": true
+      },
+      "defaultUpdate": {
+        "rateMs": 100,
+        "bucket": 1
+      },
+      "bindings": {
+        "xplane": {
+          "default": {
+            "capability": {
+              "read": "native",
+              "write": "native",
+              "command": "emulatedByReadWrite"
+            },
+            "read": {
+              "dataref": "sim/cockpit/switches/gear_handle_status",
+              "type": "int"
+            },
+            "write": {
+              "strategy": "directSet",
+              "dataref": "sim/cockpit/switches/gear_handle_status",
+              "type": "int",
+              "trueValue": 1,
+              "falseValue": 0
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "autopilot.heading_bug",
+      "label": "Autopilot heading bug",
+      "kind": "axis",
+      "valueType": "float",
+      "unit": "degrees",
+      "desiredCapability": {
+        "read": true,
+        "write": true,
+        "command": false
+      },
+      "defaultUpdate": {
+        "rateMs": 100,
+        "bucket": 1
+      },
+      "bindings": {
+        "xplane": {
+          "default": {
+            "capability": {
+              "read": "native",
+              "write": "native",
+              "command": "unsupported"
+            },
+            "read": {
+              "dataref": "sim/cockpit/autopilot/heading_mag",
+              "type": "float"
+            },
+            "write": {
+              "strategy": "directSet",
+              "dataref": "sim/cockpit/autopilot/heading_mag",
+              "type": "float"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "flight.roll",
+      "label": "Roll control",
+      "kind": "axis",
+      "valueType": "int",
+      "unit": "centered_percent",
+      "range": {
+        "min": -100,
+        "max": 100
+      },
+      "desiredCapability": {
+        "read": false,
+        "write": true,
+        "command": false
+      },
+      "defaultUpdate": {
+        "rateMs": 50,
+        "bucket": 1
+      },
+      "bindings": {
+        "xplane": {
+          "default": {
+            "capability": {
+              "read": "unsupported",
+              "write": "native",
+              "command": "unsupported"
+            },
+            "write": {
+              "strategy": "directSet",
+              "dataref": "sim/cockpit2/controls/yoke_roll_ratio",
+              "type": "float",
+              "scale": {
+                "fromMin": -100,
+                "fromMax": 100,
+                "toMin": -1,
+                "toMax": 1
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "flight.pitch",
+      "label": "Pitch control",
+      "kind": "axis",
+      "valueType": "int",
+      "unit": "centered_percent",
+      "range": {
+        "min": -100,
+        "max": 100
+      },
+      "desiredCapability": {
+        "read": false,
+        "write": true,
+        "command": false
+      },
+      "defaultUpdate": {
+        "rateMs": 50,
+        "bucket": 1
+      },
+      "bindings": {
+        "xplane": {
+          "default": {
+            "capability": {
+              "read": "unsupported",
+              "write": "native",
+              "command": "unsupported"
+            },
+            "write": {
+              "strategy": "directSet",
+              "dataref": "sim/cockpit2/controls/yoke_pitch_ratio",
+              "type": "float",
+              "scale": {
+                "fromMin": -100,
+                "fromMax": 100,
+                "toMin": -1,
+                "toMax": 1
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "engine.all.throttle",
+      "label": "All engine throttles",
+      "kind": "axis",
+      "valueType": "int",
+      "unit": "percent",
+      "range": {
+        "min": 0,
+        "max": 100
+      },
+      "desiredCapability": {
+        "read": true,
+        "write": true,
+        "command": false
+      },
+      "defaultUpdate": {
+        "rateMs": 100,
+        "bucket": 1
+      },
+      "bindings": {
+        "xplane": {
+          "default": {
+            "capability": {
+              "read": "native",
+              "write": "native",
+              "command": "unsupported"
+            },
+            "read": {
+              "dataref": "sim/cockpit2/engine/actuators/throttle_ratio",
+              "type": "float_array",
+              "indices": [0, 1],
+              "scale": {
+                "fromMin": 0,
+                "fromMax": 1,
+                "toMin": 0,
+                "toMax": 100
+              }
+            },
+            "write": {
+              "strategy": "directSet",
+              "dataref": "sim/cockpit2/engine/actuators/throttle_ratio",
+              "type": "float_array",
+              "indices": [0, 1],
+              "scale": {
+                "fromMin": 0,
+                "fromMax": 100,
+                "toMin": 0,
+                "toMax": 1
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "engine.1.throttle",
+      "label": "Engine 1 throttle",
+      "kind": "axis",
+      "valueType": "int",
+      "unit": "percent",
+      "range": {
+        "min": 0,
+        "max": 100
+      },
+      "desiredCapability": {
+        "read": true,
+        "write": true,
+        "command": false
+      },
+      "defaultUpdate": {
+        "rateMs": 100,
+        "bucket": 1
+      },
+      "bindings": {
+        "xplane": {
+          "default": {
+            "capability": {
+              "read": "native",
+              "write": "native",
+              "command": "unsupported"
+            },
+            "read": {
+              "dataref": "sim/cockpit2/engine/actuators/throttle_ratio",
+              "type": "float_array",
+              "index": 0,
+              "scale": {
+                "fromMin": 0,
+                "fromMax": 1,
+                "toMin": 0,
+                "toMax": 100
+              }
+            },
+            "write": {
+              "strategy": "directSet",
+              "dataref": "sim/cockpit2/engine/actuators/throttle_ratio",
+              "type": "float_array",
+              "index": 0,
+              "scale": {
+                "fromMin": 0,
+                "fromMax": 100,
+                "toMin": 0,
+                "toMax": 1
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "engine.2.throttle",
+      "label": "Engine 2 throttle",
+      "kind": "axis",
+      "valueType": "int",
+      "unit": "percent",
+      "range": {
+        "min": 0,
+        "max": 100
+      },
+      "desiredCapability": {
+        "read": true,
+        "write": true,
+        "command": false
+      },
+      "defaultUpdate": {
+        "rateMs": 100,
+        "bucket": 1
+      },
+      "bindings": {
+        "xplane": {
+          "default": {
+            "capability": {
+              "read": "native",
+              "write": "native",
+              "command": "unsupported"
+            },
+            "read": {
+              "dataref": "sim/cockpit2/engine/actuators/throttle_ratio",
+              "type": "float_array",
+              "index": 1,
+              "scale": {
+                "fromMin": 0,
+                "fromMax": 1,
+                "toMin": 0,
+                "toMax": 100
+              }
+            },
+            "write": {
+              "strategy": "directSet",
+              "dataref": "sim/cockpit2/engine/actuators/throttle_ratio",
+              "type": "float_array",
+              "index": 1,
+              "scale": {
+                "fromMin": 0,
+                "fromMax": 100,
+                "toMin": 0,
+                "toMax": 1
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "engine.1.prop_rpm",
+      "label": "Engine 1 prop RPM control",
+      "kind": "axis",
+      "valueType": "int",
+      "unit": "percent",
+      "range": {
+        "min": 0,
+        "max": 100
+      },
+      "desiredCapability": {
+        "read": true,
+        "write": true,
+        "command": false
+      },
+      "defaultUpdate": {
+        "rateMs": 100,
+        "bucket": 1
+      },
+      "bindings": {
+        "xplane": {
+          "default": {
+            "capability": {
+              "read": "native",
+              "write": "native",
+              "command": "unsupported"
+            },
+            "read": {
+              "dataref": "sim/cockpit2/engine/actuators/prop_rotation_speed_rad_sec",
+              "type": "float_array",
+              "index": 0,
+              "scale": {
+                "fromMin": 73.29,
+                "fromMax": 282.7,
+                "toMin": 0,
+                "toMax": 100
+              }
+            },
+            "write": {
+              "strategy": "directSet",
+              "dataref": "sim/cockpit2/engine/actuators/prop_rotation_speed_rad_sec",
+              "type": "float_array",
+              "index": 0,
+              "scale": {
+                "fromMin": 0,
+                "fromMax": 100,
+                "toMin": 73.29,
+                "toMax": 282.7
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "engine.2.prop_rpm",
+      "label": "Engine 2 prop RPM control",
+      "kind": "axis",
+      "valueType": "int",
+      "unit": "percent",
+      "range": {
+        "min": 0,
+        "max": 100
+      },
+      "desiredCapability": {
+        "read": true,
+        "write": true,
+        "command": false
+      },
+      "defaultUpdate": {
+        "rateMs": 100,
+        "bucket": 1
+      },
+      "bindings": {
+        "xplane": {
+          "default": {
+            "capability": {
+              "read": "native",
+              "write": "native",
+              "command": "unsupported"
+            },
+            "read": {
+              "dataref": "sim/cockpit2/engine/actuators/prop_rotation_speed_rad_sec",
+              "type": "float_array",
+              "index": 1,
+              "scale": {
+                "fromMin": 73.29,
+                "fromMax": 282.7,
+                "toMin": 0,
+                "toMax": 100
+              }
+            },
+            "write": {
+              "strategy": "directSet",
+              "dataref": "sim/cockpit2/engine/actuators/prop_rotation_speed_rad_sec",
+              "type": "float_array",
+              "index": 1,
+              "scale": {
+                "fromMin": 0,
+                "fromMax": 100,
+                "toMin": 73.29,
+                "toMax": 282.7
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "engine.1.mixture",
+      "label": "Engine 1 mixture",
+      "kind": "axis",
+      "valueType": "int",
+      "unit": "percent",
+      "range": {
+        "min": 0,
+        "max": 100
+      },
+      "desiredCapability": {
+        "read": true,
+        "write": true,
+        "command": false
+      },
+      "defaultUpdate": {
+        "rateMs": 100,
+        "bucket": 1
+      },
+      "bindings": {
+        "xplane": {
+          "default": {
+            "capability": {
+              "read": "native",
+              "write": "native",
+              "command": "unsupported"
+            },
+            "read": {
+              "dataref": "sim/cockpit2/engine/actuators/mixture_ratio",
+              "type": "float_array",
+              "index": 0,
+              "scale": {
+                "fromMin": 0,
+                "fromMax": 1,
+                "toMin": 0,
+                "toMax": 100
+              }
+            },
+            "write": {
+              "strategy": "directSet",
+              "dataref": "sim/cockpit2/engine/actuators/mixture_ratio",
+              "type": "float_array",
+              "index": 0,
+              "scale": {
+                "fromMin": 0,
+                "fromMax": 100,
+                "toMin": 0,
+                "toMax": 1
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "engine.2.mixture",
+      "label": "Engine 2 mixture",
+      "kind": "axis",
+      "valueType": "int",
+      "unit": "percent",
+      "range": {
+        "min": 0,
+        "max": 100
+      },
+      "desiredCapability": {
+        "read": true,
+        "write": true,
+        "command": false
+      },
+      "defaultUpdate": {
+        "rateMs": 100,
+        "bucket": 1
+      },
+      "bindings": {
+        "xplane": {
+          "default": {
+            "capability": {
+              "read": "native",
+              "write": "native",
+              "command": "unsupported"
+            },
+            "read": {
+              "dataref": "sim/cockpit2/engine/actuators/mixture_ratio",
+              "type": "float_array",
+              "index": 1,
+              "scale": {
+                "fromMin": 0,
+                "fromMax": 1,
+                "toMin": 0,
+                "toMax": 100
+              }
+            },
+            "write": {
+              "strategy": "directSet",
+              "dataref": "sim/cockpit2/engine/actuators/mixture_ratio",
+              "type": "float_array",
+              "index": 1,
+              "scale": {
+                "fromMin": 0,
+                "fromMax": 100,
+                "toMin": 0,
+                "toMax": 1
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}
