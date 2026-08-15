@@ -41,10 +41,23 @@
           "default": {
             "capability": {
               "read": "native",
-              "write": "unsupported",
+              "write": "native",
               "command": "native"
             },
-            "notes": "Illustrative placeholder showing that simulator capabilities can differ."
+            "read": {
+              "simvar": "LIGHT BEACON",
+              "unit": "Bool",
+              "type": "int32"
+            },
+            "event": {
+              "event": "BEACON_LIGHTS_SET",
+              "scale": {
+                "fromMin": 0,
+                "fromMax": 1,
+                "toMin": 0,
+                "toMax": 1
+              }
+            }
           }
         }
       }
@@ -120,6 +133,15 @@
               "falseValue": 0
             }
           }
+        },
+        "msfs": {
+          "default": {
+            "capability": { "read": "unsupported", "write": "native", "command": "unsupported" },
+            "event": {
+              "event": "STROBES_SET",
+              "scale": { "fromMin": 0, "fromMax": 1, "toMin": 0, "toMax": 1 }
+            }
+          }
         }
       }
     },
@@ -155,6 +177,15 @@
               "type": "int",
               "trueValue": 1,
               "falseValue": 0
+            }
+          }
+        },
+        "msfs": {
+          "default": {
+            "capability": { "read": "unsupported", "write": "native", "command": "native" },
+            "event": {
+              "event": "GEAR_SET",
+              "scale": { "fromMin": 0, "fromMax": 1, "toMin": 0, "toMax": 1 }
             }
           }
         }
@@ -235,6 +266,24 @@
               }
             }
           }
+        },
+        "msfs": {
+          "default": {
+            "capability": {
+              "read": "unsupported",
+              "write": "native",
+              "command": "unsupported"
+            },
+            "event": {
+              "event": "AXIS_AILERONS_SET",
+              "scale": {
+                "fromMin": -100,
+                "fromMax": 100,
+                "toMin": 16383,
+                "toMax": -16383
+              }
+            }
+          }
         }
       }
     },
@@ -274,6 +323,24 @@
                 "fromMax": 100,
                 "toMin": -1,
                 "toMax": 1
+              }
+            }
+          }
+        },
+        "msfs": {
+          "default": {
+            "capability": {
+              "read": "unsupported",
+              "write": "native",
+              "command": "unsupported"
+            },
+            "event": {
+              "event": "AXIS_ELEVATOR_SET",
+              "scale": {
+                "fromMin": -100,
+                "fromMax": 100,
+                "toMin": 16383,
+                "toMax": -16383
               }
             }
           }
@@ -385,6 +452,15 @@
               }
             }
           }
+        },
+        "msfs": {
+          "default": {
+            "capability": { "read": "unsupported", "write": "native", "command": "unsupported" },
+            "event": {
+              "event": "AXIS_THROTTLE1_SET",
+              "scale": { "fromMin": 0, "fromMax": 100, "toMin": 0, "toMax": 16383 }
+            }
+          }
         }
       }
     },
@@ -437,6 +513,15 @@
                 "toMin": 0,
                 "toMax": 1
               }
+            }
+          }
+        },
+        "msfs": {
+          "default": {
+            "capability": { "read": "unsupported", "write": "native", "command": "unsupported" },
+            "event": {
+              "event": "AXIS_THROTTLE2_SET",
+              "scale": { "fromMin": 0, "fromMax": 100, "toMin": 0, "toMax": 16383 }
             }
           }
         }
@@ -493,6 +578,15 @@
               }
             }
           }
+        },
+        "msfs": {
+          "default": {
+            "capability": { "read": "unsupported", "write": "native", "command": "unsupported" },
+            "event": {
+              "event": "AXIS_PROPELLER1_SET",
+              "scale": { "fromMin": 0, "fromMax": 100, "toMin": -16383, "toMax": 16383 }
+            }
+          }
         }
       }
     },
@@ -545,6 +639,15 @@
                 "toMin": 73.29,
                 "toMax": 282.7
               }
+            }
+          }
+        },
+        "msfs": {
+          "default": {
+            "capability": { "read": "unsupported", "write": "native", "command": "unsupported" },
+            "event": {
+              "event": "AXIS_PROPELLER2_SET",
+              "scale": { "fromMin": 0, "fromMax": 100, "toMin": -16383, "toMax": 16383 }
             }
           }
         }
@@ -601,6 +704,15 @@
               }
             }
           }
+        },
+        "msfs": {
+          "default": {
+            "capability": { "read": "unsupported", "write": "native", "command": "unsupported" },
+            "event": {
+              "event": "AXIS_MIXTURE1_SET",
+              "scale": { "fromMin": 0, "fromMax": 100, "toMin": -16383, "toMax": 16383 }
+            }
+          }
         }
       }
     },
@@ -655,8 +767,766 @@
               }
             }
           }
+        },
+        "msfs": {
+          "default": {
+            "capability": { "read": "unsupported", "write": "native", "command": "unsupported" },
+            "event": {
+              "event": "AXIS_MIXTURE2_SET",
+              "scale": { "fromMin": 0, "fromMax": 100, "toMin": -16383, "toMax": 16383 }
+            }
+          }
         }
       }
+    },
+    {
+      "id": "flight.yaw",
+      "label": "Yaw control",
+      "kind": "axis",
+      "valueType": "int",
+      "unit": "centered_percent",
+      "range": { "min": -100, "max": 100 },
+      "desiredCapability": { "read": false, "write": true, "command": false },
+      "defaultUpdate": { "rateMs": 50, "bucket": 1 },
+      "bindings": {
+        "xplane": {
+          "default": {
+            "capability": { "read": "unsupported", "write": "native", "command": "unsupported" },
+            "write": {
+              "strategy": "directSet",
+              "dataref": "sim/cockpit2/controls/yoke_heading_ratio",
+              "type": "float",
+              "scale": { "fromMin": -100, "fromMax": 100, "toMin": -1, "toMax": 1 }
+            }
+          }
+        },
+        "msfs": {
+          "default": {
+            "capability": { "read": "unsupported", "write": "native", "command": "unsupported" },
+            "event": {
+              "event": "AXIS_RUDDER_SET",
+              "scale": { "fromMin": -100, "fromMax": 100, "toMin": 16383, "toMax": -16383 }
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "lights.landing",
+      "label": "Landing lights",
+      "kind": "toggle",
+      "valueType": "bool",
+      "desiredCapability": { "read": true, "write": true, "command": false },
+      "defaultUpdate": { "rateMs": 100, "bucket": 1 },
+      "bindings": {
+        "xplane": {
+          "default": {
+            "capability": { "read": "native", "write": "native", "command": "unsupported" },
+            "read": { "dataref": "sim/cockpit/electrical/landing_lights_on", "type": "int" },
+            "write": {
+              "strategy": "directSet",
+              "dataref": "sim/cockpit/electrical/landing_lights_on",
+              "type": "int",
+              "trueValue": 1,
+              "falseValue": 0
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "flight.flaps_up",
+      "label": "Flaps one notch up",
+      "kind": "momentary",
+      "valueType": "bool",
+      "desiredCapability": { "read": false, "write": false, "command": true },
+      "defaultUpdate": { "rateMs": 0, "bucket": 1 },
+      "bindings": { "xplane": { "default": {
+        "capability": { "read": "unsupported", "write": "unsupported", "command": "native" },
+        "command": "sim/flight_controls/flaps_up"
+      } }, "msfs": { "default": {
+        "capability": { "read": "unsupported", "write": "unsupported", "command": "native" },
+        "event": { "event": "FLAPS_DECR" }
+      } } }
+    },
+    {
+      "id": "flight.flaps_down",
+      "label": "Flaps one notch down",
+      "kind": "momentary",
+      "valueType": "bool",
+      "desiredCapability": { "read": false, "write": false, "command": true },
+      "defaultUpdate": { "rateMs": 0, "bucket": 1 },
+      "bindings": { "xplane": { "default": {
+        "capability": { "read": "unsupported", "write": "unsupported", "command": "native" },
+        "command": "sim/flight_controls/flaps_down"
+      } }, "msfs": { "default": {
+        "capability": { "read": "unsupported", "write": "unsupported", "command": "native" },
+        "event": { "event": "FLAPS_INCR" }
+      } } }
+    },
+    {
+      "id": "flight.elevator_trim_up",
+      "label": "Elevator trim up",
+      "kind": "momentary",
+      "valueType": "bool",
+      "desiredCapability": { "read": false, "write": false, "command": true },
+      "defaultUpdate": { "rateMs": 0, "bucket": 1 },
+      "bindings": { "xplane": { "default": {
+        "capability": { "read": "unsupported", "write": "unsupported", "command": "native" },
+        "command": "sim/flight_controls/pitch_trim_up"
+      } }, "msfs": { "default": {
+        "capability": { "read": "unsupported", "write": "unsupported", "command": "native" },
+        "event": { "event": "ELEV_TRIM_UP" }
+      } } }
+    },
+    {
+      "id": "flight.elevator_trim_down",
+      "label": "Elevator trim down",
+      "kind": "momentary",
+      "valueType": "bool",
+      "desiredCapability": { "read": false, "write": false, "command": true },
+      "defaultUpdate": { "rateMs": 0, "bucket": 1 },
+      "bindings": { "xplane": { "default": {
+        "capability": { "read": "unsupported", "write": "unsupported", "command": "native" },
+        "command": "sim/flight_controls/pitch_trim_down"
+      } }, "msfs": { "default": {
+        "capability": { "read": "unsupported", "write": "unsupported", "command": "native" },
+        "event": { "event": "ELEV_TRIM_DN" }
+      } } }
+    },
+    {
+      "id": "flight.rudder_trim_left",
+      "label": "Rudder trim left",
+      "kind": "momentary",
+      "valueType": "bool",
+      "desiredCapability": { "read": false, "write": false, "command": true },
+      "defaultUpdate": { "rateMs": 0, "bucket": 1 },
+      "bindings": { "xplane": { "default": {
+        "capability": { "read": "unsupported", "write": "unsupported", "command": "native" },
+        "command": "sim/flight_controls/rudder_trim_left"
+      } }, "msfs": { "default": {
+        "capability": { "read": "unsupported", "write": "unsupported", "command": "native" },
+        "event": { "event": "RUDDER_TRIM_LEFT" }
+      } } }
+    },
+    {
+      "id": "flight.rudder_trim_right",
+      "label": "Rudder trim right",
+      "kind": "momentary",
+      "valueType": "bool",
+      "desiredCapability": { "read": false, "write": false, "command": true },
+      "defaultUpdate": { "rateMs": 0, "bucket": 1 },
+      "bindings": { "xplane": { "default": {
+        "capability": { "read": "unsupported", "write": "unsupported", "command": "native" },
+        "command": "sim/flight_controls/rudder_trim_right"
+      } }, "msfs": { "default": {
+        "capability": { "read": "unsupported", "write": "unsupported", "command": "native" },
+        "event": { "event": "RUDDER_TRIM_RIGHT" }
+      } } }
+    },
+    {
+      "id": "autopilot.heading_up",
+      "label": "Increase heading bug",
+      "kind": "momentary",
+      "valueType": "bool",
+      "desiredCapability": { "read": false, "write": false, "command": true },
+      "defaultUpdate": { "rateMs": 0, "bucket": 1 },
+      "bindings": { "xplane": { "default": {
+        "capability": { "read": "unsupported", "write": "unsupported", "command": "native" },
+        "command": "sim/autopilot/heading_up"
+      } }, "msfs": { "default": {
+        "capability": { "read": "unsupported", "write": "unsupported", "command": "native" },
+        "event": { "event": "HEADING_BUG_INC" }
+      } } }
+    },
+    {
+      "id": "autopilot.heading_down",
+      "label": "Decrease heading bug",
+      "kind": "momentary",
+      "valueType": "bool",
+      "desiredCapability": { "read": false, "write": false, "command": true },
+      "defaultUpdate": { "rateMs": 0, "bucket": 1 },
+      "bindings": { "xplane": { "default": {
+        "capability": { "read": "unsupported", "write": "unsupported", "command": "native" },
+        "command": "sim/autopilot/heading_down"
+      } }, "msfs": { "default": {
+        "capability": { "read": "unsupported", "write": "unsupported", "command": "native" },
+        "event": { "event": "HEADING_BUG_DEC" }
+      } } }
+    },
+    {
+      "id": "autopilot.heading_sync",
+      "label": "Synchronize heading bug",
+      "kind": "momentary",
+      "valueType": "bool",
+      "desiredCapability": { "read": false, "write": false, "command": true },
+      "defaultUpdate": { "rateMs": 0, "bucket": 1 },
+      "bindings": { "xplane": { "default": {
+        "capability": { "read": "unsupported", "write": "unsupported", "command": "native" },
+        "command": "sim/autopilot/heading_sync"
+      } }, "msfs": { "default": {
+        "capability": { "read": "unsupported", "write": "unsupported", "command": "native" },
+        "event": { "event": "HEADING_BUG_SET" }
+      } } }
+    },
+    {
+      "id": "autopilot.altitude_up",
+      "label": "Increase selected altitude",
+      "kind": "momentary", "valueType": "bool",
+      "desiredCapability": { "read": false, "write": false, "command": true },
+      "defaultUpdate": { "rateMs": 0, "bucket": 1 },
+      "bindings": { "xplane": { "default": {
+        "capability": { "read": "unsupported", "write": "unsupported", "command": "native" },
+        "command": "sim/autopilot/altitude_up"
+      } }, "msfs": { "default": {
+        "capability": { "read": "unsupported", "write": "unsupported", "command": "native" },
+        "event": { "event": "AP_ALT_VAR_INC" }
+      } } }
+    },
+    {
+      "id": "autopilot.altitude_down",
+      "label": "Decrease selected altitude",
+      "kind": "momentary", "valueType": "bool",
+      "desiredCapability": { "read": false, "write": false, "command": true },
+      "defaultUpdate": { "rateMs": 0, "bucket": 1 },
+      "bindings": { "xplane": { "default": {
+        "capability": { "read": "unsupported", "write": "unsupported", "command": "native" },
+        "command": "sim/autopilot/altitude_down"
+      } }, "msfs": { "default": {
+        "capability": { "read": "unsupported", "write": "unsupported", "command": "native" },
+        "event": { "event": "AP_ALT_VAR_DEC" }
+      } } }
+    },
+    {
+      "id": "autopilot.vertical_speed_up",
+      "label": "Increase selected vertical speed",
+      "kind": "momentary", "valueType": "bool",
+      "desiredCapability": { "read": false, "write": false, "command": true },
+      "defaultUpdate": { "rateMs": 0, "bucket": 1 },
+      "bindings": { "xplane": { "default": {
+        "capability": { "read": "unsupported", "write": "unsupported", "command": "native" },
+        "command": "sim/autopilot/vertical_speed_up"
+      } }, "msfs": { "default": {
+        "capability": { "read": "unsupported", "write": "unsupported", "command": "native" },
+        "event": { "event": "AP_VS_VAR_INC" }
+      } } }
+    },
+    {
+      "id": "autopilot.vertical_speed_down",
+      "label": "Decrease selected vertical speed",
+      "kind": "momentary", "valueType": "bool",
+      "desiredCapability": { "read": false, "write": false, "command": true },
+      "defaultUpdate": { "rateMs": 0, "bucket": 1 },
+      "bindings": { "xplane": { "default": {
+        "capability": { "read": "unsupported", "write": "unsupported", "command": "native" },
+        "command": "sim/autopilot/vertical_speed_down"
+      } }, "msfs": { "default": {
+        "capability": { "read": "unsupported", "write": "unsupported", "command": "native" },
+        "event": { "event": "AP_VS_VAR_DEC" }
+      } } }
+    },
+    {
+      "id": "autopilot.airspeed_up",
+      "label": "Increase selected airspeed",
+      "kind": "momentary", "valueType": "bool",
+      "desiredCapability": { "read": false, "write": false, "command": true },
+      "defaultUpdate": { "rateMs": 0, "bucket": 1 },
+      "bindings": { "xplane": { "default": {
+        "capability": { "read": "unsupported", "write": "unsupported", "command": "native" },
+        "command": "sim/autopilot/airspeed_up"
+      } }, "msfs": { "default": {
+        "capability": { "read": "unsupported", "write": "unsupported", "command": "native" },
+        "event": { "event": "AP_SPD_VAR_INC" }
+      } } }
+    },
+    {
+      "id": "autopilot.airspeed_down",
+      "label": "Decrease selected airspeed",
+      "kind": "momentary", "valueType": "bool",
+      "desiredCapability": { "read": false, "write": false, "command": true },
+      "defaultUpdate": { "rateMs": 0, "bucket": 1 },
+      "bindings": { "xplane": { "default": {
+        "capability": { "read": "unsupported", "write": "unsupported", "command": "native" },
+        "command": "sim/autopilot/airspeed_down"
+      } }, "msfs": { "default": {
+        "capability": { "read": "unsupported", "write": "unsupported", "command": "native" },
+        "event": { "event": "AP_SPD_VAR_DEC" }
+      } } }
+    },
+    {
+      "id": "navigation.course_1_up",
+      "label": "Increase NAV 1 course",
+      "kind": "momentary", "valueType": "bool",
+      "desiredCapability": { "read": false, "write": false, "command": true },
+      "defaultUpdate": { "rateMs": 0, "bucket": 1 },
+      "bindings": { "xplane": { "default": {
+        "capability": { "read": "unsupported", "write": "unsupported", "command": "native" },
+        "command": "sim/radios/obs1_up"
+      } }, "msfs": { "default": {
+        "capability": { "read": "unsupported", "write": "unsupported", "command": "native" },
+        "event": { "event": "VOR1_OBI_INC" }
+      } } }
+    },
+    {
+      "id": "navigation.course_1_down",
+      "label": "Decrease NAV 1 course",
+      "kind": "momentary", "valueType": "bool",
+      "desiredCapability": { "read": false, "write": false, "command": true },
+      "defaultUpdate": { "rateMs": 0, "bucket": 1 },
+      "bindings": { "xplane": { "default": {
+        "capability": { "read": "unsupported", "write": "unsupported", "command": "native" },
+        "command": "sim/radios/obs1_down"
+      } }, "msfs": { "default": {
+        "capability": { "read": "unsupported", "write": "unsupported", "command": "native" },
+        "event": { "event": "VOR1_OBI_DEC" }
+      } } }
+    },
+    {
+      "id": "radios.com1.standby_coarse_up",
+      "label": "Increase COM 1 standby MHz",
+      "kind": "momentary", "valueType": "bool",
+      "desiredCapability": { "read": false, "write": false, "command": true },
+      "defaultUpdate": { "rateMs": 0, "bucket": 1 },
+      "bindings": { "xplane": { "default": {
+        "capability": { "read": "unsupported", "write": "unsupported", "command": "native" },
+        "command": "sim/radios/stby_com1_coarse_up"
+      } }, "msfs": { "default": {
+        "capability": { "read": "unsupported", "write": "unsupported", "command": "native" },
+        "event": { "event": "COM_RADIO_WHOLE_INC" }
+      } } }
+    },
+    {
+      "id": "radios.com1.standby_coarse_down",
+      "label": "Decrease COM 1 standby MHz",
+      "kind": "momentary", "valueType": "bool",
+      "desiredCapability": { "read": false, "write": false, "command": true },
+      "defaultUpdate": { "rateMs": 0, "bucket": 1 },
+      "bindings": { "xplane": { "default": {
+        "capability": { "read": "unsupported", "write": "unsupported", "command": "native" },
+        "command": "sim/radios/stby_com1_coarse_down"
+      } }, "msfs": { "default": {
+        "capability": { "read": "unsupported", "write": "unsupported", "command": "native" },
+        "event": { "event": "COM_RADIO_WHOLE_DEC" }
+      } } }
+    },
+    {
+      "id": "radios.com1.standby_fine_up",
+      "label": "Increase COM 1 standby kHz",
+      "kind": "momentary", "valueType": "bool",
+      "desiredCapability": { "read": false, "write": false, "command": true },
+      "defaultUpdate": { "rateMs": 0, "bucket": 1 },
+      "bindings": { "xplane": { "default": {
+        "capability": { "read": "unsupported", "write": "unsupported", "command": "native" },
+        "command": "sim/radios/stby_com1_fine_up"
+      } }, "msfs": { "default": {
+        "capability": { "read": "unsupported", "write": "unsupported", "command": "native" },
+        "event": { "event": "COM_RADIO_FRACT_INC" }
+      } } }
+    },
+    {
+      "id": "radios.com1.standby_fine_down",
+      "label": "Decrease COM 1 standby kHz",
+      "kind": "momentary", "valueType": "bool",
+      "desiredCapability": { "read": false, "write": false, "command": true },
+      "defaultUpdate": { "rateMs": 0, "bucket": 1 },
+      "bindings": { "xplane": { "default": {
+        "capability": { "read": "unsupported", "write": "unsupported", "command": "native" },
+        "command": "sim/radios/stby_com1_fine_down"
+      } }, "msfs": { "default": {
+        "capability": { "read": "unsupported", "write": "unsupported", "command": "native" },
+        "event": { "event": "COM_RADIO_FRACT_DEC" }
+      } } }
+    },
+    {
+      "id": "radios.com2.standby_coarse_up", "label": "Increase COM 2 standby MHz",
+      "kind": "momentary", "valueType": "bool",
+      "desiredCapability": { "read": false, "write": false, "command": true },
+      "defaultUpdate": { "rateMs": 0, "bucket": 1 },
+      "bindings": { "xplane": { "default": {
+        "capability": { "read": "unsupported", "write": "unsupported", "command": "native" },
+        "command": "sim/radios/stby_com2_coarse_up"
+      } }, "msfs": { "default": {
+        "capability": { "read": "unsupported", "write": "unsupported", "command": "native" },
+        "event": { "event": "COM2_RADIO_WHOLE_INC" }
+      } } }
+    },
+    {
+      "id": "radios.com2.standby_coarse_down", "label": "Decrease COM 2 standby MHz",
+      "kind": "momentary", "valueType": "bool",
+      "desiredCapability": { "read": false, "write": false, "command": true },
+      "defaultUpdate": { "rateMs": 0, "bucket": 1 },
+      "bindings": { "xplane": { "default": {
+        "capability": { "read": "unsupported", "write": "unsupported", "command": "native" },
+        "command": "sim/radios/stby_com2_coarse_down"
+      } }, "msfs": { "default": {
+        "capability": { "read": "unsupported", "write": "unsupported", "command": "native" },
+        "event": { "event": "COM2_RADIO_WHOLE_DEC" }
+      } } }
+    },
+    {
+      "id": "radios.com2.standby_fine_up", "label": "Increase COM 2 standby kHz",
+      "kind": "momentary", "valueType": "bool",
+      "desiredCapability": { "read": false, "write": false, "command": true },
+      "defaultUpdate": { "rateMs": 0, "bucket": 1 },
+      "bindings": { "xplane": { "default": {
+        "capability": { "read": "unsupported", "write": "unsupported", "command": "native" },
+        "command": "sim/radios/stby_com2_fine_up"
+      } }, "msfs": { "default": {
+        "capability": { "read": "unsupported", "write": "unsupported", "command": "native" },
+        "event": { "event": "COM2_RADIO_FRACT_INC" }
+      } } }
+    },
+    {
+      "id": "radios.com2.standby_fine_down", "label": "Decrease COM 2 standby kHz",
+      "kind": "momentary", "valueType": "bool",
+      "desiredCapability": { "read": false, "write": false, "command": true },
+      "defaultUpdate": { "rateMs": 0, "bucket": 1 },
+      "bindings": { "xplane": { "default": {
+        "capability": { "read": "unsupported", "write": "unsupported", "command": "native" },
+        "command": "sim/radios/stby_com2_fine_down"
+      } }, "msfs": { "default": {
+        "capability": { "read": "unsupported", "write": "unsupported", "command": "native" },
+        "event": { "event": "COM2_RADIO_FRACT_DEC" }
+      } } }
+    },
+    {
+      "id": "radios.nav1.standby_coarse_up", "label": "Increase NAV 1 standby MHz",
+      "kind": "momentary", "valueType": "bool",
+      "desiredCapability": { "read": false, "write": false, "command": true },
+      "defaultUpdate": { "rateMs": 0, "bucket": 1 },
+      "bindings": { "xplane": { "default": {
+        "capability": { "read": "unsupported", "write": "unsupported", "command": "native" },
+        "command": "sim/radios/stby_nav1_coarse_up"
+      } }, "msfs": { "default": {
+        "capability": { "read": "unsupported", "write": "unsupported", "command": "native" },
+        "event": { "event": "NAV1_RADIO_WHOLE_INC" }
+      } } }
+    },
+    {
+      "id": "radios.nav1.standby_coarse_down", "label": "Decrease NAV 1 standby MHz",
+      "kind": "momentary", "valueType": "bool",
+      "desiredCapability": { "read": false, "write": false, "command": true },
+      "defaultUpdate": { "rateMs": 0, "bucket": 1 },
+      "bindings": { "xplane": { "default": {
+        "capability": { "read": "unsupported", "write": "unsupported", "command": "native" },
+        "command": "sim/radios/stby_nav1_coarse_down"
+      } }, "msfs": { "default": {
+        "capability": { "read": "unsupported", "write": "unsupported", "command": "native" },
+        "event": { "event": "NAV1_RADIO_WHOLE_DEC" }
+      } } }
+    },
+    {
+      "id": "radios.nav1.standby_fine_up", "label": "Increase NAV 1 standby kHz",
+      "kind": "momentary", "valueType": "bool",
+      "desiredCapability": { "read": false, "write": false, "command": true },
+      "defaultUpdate": { "rateMs": 0, "bucket": 1 },
+      "bindings": { "xplane": { "default": {
+        "capability": { "read": "unsupported", "write": "unsupported", "command": "native" },
+        "command": "sim/radios/stby_nav1_fine_up"
+      } }, "msfs": { "default": {
+        "capability": { "read": "unsupported", "write": "unsupported", "command": "native" },
+        "event": { "event": "NAV1_RADIO_FRACT_INC" }
+      } } }
+    },
+    {
+      "id": "radios.nav1.standby_fine_down", "label": "Decrease NAV 1 standby kHz",
+      "kind": "momentary", "valueType": "bool",
+      "desiredCapability": { "read": false, "write": false, "command": true },
+      "defaultUpdate": { "rateMs": 0, "bucket": 1 },
+      "bindings": { "xplane": { "default": {
+        "capability": { "read": "unsupported", "write": "unsupported", "command": "native" },
+        "command": "sim/radios/stby_nav1_fine_down"
+      } }, "msfs": { "default": {
+        "capability": { "read": "unsupported", "write": "unsupported", "command": "native" },
+        "event": { "event": "NAV1_RADIO_FRACT_DEC" }
+      } } }
+    },
+    {
+      "id": "radios.nav2.standby_coarse_up", "label": "Increase NAV 2 standby MHz",
+      "kind": "momentary", "valueType": "bool",
+      "desiredCapability": { "read": false, "write": false, "command": true },
+      "defaultUpdate": { "rateMs": 0, "bucket": 1 },
+      "bindings": { "xplane": { "default": {
+        "capability": { "read": "unsupported", "write": "unsupported", "command": "native" },
+        "command": "sim/radios/stby_nav2_coarse_up"
+      } }, "msfs": { "default": {
+        "capability": { "read": "unsupported", "write": "unsupported", "command": "native" },
+        "event": { "event": "NAV2_RADIO_WHOLE_INC" }
+      } } }
+    },
+    {
+      "id": "radios.nav2.standby_coarse_down", "label": "Decrease NAV 2 standby MHz",
+      "kind": "momentary", "valueType": "bool",
+      "desiredCapability": { "read": false, "write": false, "command": true },
+      "defaultUpdate": { "rateMs": 0, "bucket": 1 },
+      "bindings": { "xplane": { "default": {
+        "capability": { "read": "unsupported", "write": "unsupported", "command": "native" },
+        "command": "sim/radios/stby_nav2_coarse_down"
+      } }, "msfs": { "default": {
+        "capability": { "read": "unsupported", "write": "unsupported", "command": "native" },
+        "event": { "event": "NAV2_RADIO_WHOLE_DEC" }
+      } } }
+    },
+    {
+      "id": "radios.nav2.standby_fine_up", "label": "Increase NAV 2 standby kHz",
+      "kind": "momentary", "valueType": "bool",
+      "desiredCapability": { "read": false, "write": false, "command": true },
+      "defaultUpdate": { "rateMs": 0, "bucket": 1 },
+      "bindings": { "xplane": { "default": {
+        "capability": { "read": "unsupported", "write": "unsupported", "command": "native" },
+        "command": "sim/radios/stby_nav2_fine_up"
+      } }, "msfs": { "default": {
+        "capability": { "read": "unsupported", "write": "unsupported", "command": "native" },
+        "event": { "event": "NAV2_RADIO_FRACT_INC" }
+      } } }
+    },
+    {
+      "id": "radios.nav2.standby_fine_down", "label": "Decrease NAV 2 standby kHz",
+      "kind": "momentary", "valueType": "bool",
+      "desiredCapability": { "read": false, "write": false, "command": true },
+      "defaultUpdate": { "rateMs": 0, "bucket": 1 },
+      "bindings": { "xplane": { "default": {
+        "capability": { "read": "unsupported", "write": "unsupported", "command": "native" },
+        "command": "sim/radios/stby_nav2_fine_down"
+      } }, "msfs": { "default": {
+        "capability": { "read": "unsupported", "write": "unsupported", "command": "native" },
+        "event": { "event": "NAV2_RADIO_FRACT_DEC" }
+      } } }
+    },
+    {
+      "id": "autopilot.altitude_sync", "label": "Synchronize selected altitude",
+      "kind": "momentary", "valueType": "bool",
+      "desiredCapability": { "read": false, "write": false, "command": true },
+      "defaultUpdate": { "rateMs": 0, "bucket": 1 },
+      "bindings": { "xplane": { "default": {
+        "capability": { "read": "unsupported", "write": "unsupported", "command": "native" },
+        "command": "sim/autopilot/altitude_sync"
+      } } }
+    },
+    {
+      "id": "autopilot.airspeed_sync", "label": "Synchronize selected airspeed",
+      "kind": "momentary", "valueType": "bool",
+      "desiredCapability": { "read": false, "write": false, "command": true },
+      "defaultUpdate": { "rateMs": 0, "bucket": 1 },
+      "bindings": { "xplane": { "default": {
+        "capability": { "read": "unsupported", "write": "unsupported", "command": "native" },
+        "command": "sim/autopilot/airspeed_sync"
+      } } }
+    },
+    {
+      "id": "radios.com1.flip", "label": "Swap COM 1 active and standby",
+      "kind": "momentary", "valueType": "bool",
+      "desiredCapability": { "read": false, "write": false, "command": true },
+      "defaultUpdate": { "rateMs": 0, "bucket": 1 },
+      "bindings": { "xplane": { "default": {
+        "capability": { "read": "unsupported", "write": "unsupported", "command": "native" },
+        "command": "sim/radios/com1_standy_flip"
+      } }, "msfs": { "default": {
+        "capability": { "read": "unsupported", "write": "unsupported", "command": "native" },
+        "event": { "event": "COM1_RADIO_SWAP" }
+      } } }
+    },
+    {
+      "id": "radios.com2.flip", "label": "Swap COM 2 active and standby",
+      "kind": "momentary", "valueType": "bool",
+      "desiredCapability": { "read": false, "write": false, "command": true },
+      "defaultUpdate": { "rateMs": 0, "bucket": 1 },
+      "bindings": { "xplane": { "default": {
+        "capability": { "read": "unsupported", "write": "unsupported", "command": "native" },
+        "command": "sim/radios/com2_standy_flip"
+      } }, "msfs": { "default": {
+        "capability": { "read": "unsupported", "write": "unsupported", "command": "native" },
+        "event": { "event": "COM2_RADIO_SWAP" }
+      } } }
+    },
+    {
+      "id": "radios.nav1.flip", "label": "Swap NAV 1 active and standby",
+      "kind": "momentary", "valueType": "bool",
+      "desiredCapability": { "read": false, "write": false, "command": true },
+      "defaultUpdate": { "rateMs": 0, "bucket": 1 },
+      "bindings": { "xplane": { "default": {
+        "capability": { "read": "unsupported", "write": "unsupported", "command": "native" },
+        "command": "sim/radios/nav1_standy_flip"
+      } }, "msfs": { "default": {
+        "capability": { "read": "unsupported", "write": "unsupported", "command": "native" },
+        "event": { "event": "NAV1_RADIO_SWAP" }
+      } } }
+    },
+    {
+      "id": "radios.nav2.flip", "label": "Swap NAV 2 active and standby",
+      "kind": "momentary", "valueType": "bool",
+      "desiredCapability": { "read": false, "write": false, "command": true },
+      "defaultUpdate": { "rateMs": 0, "bucket": 1 },
+      "bindings": { "xplane": { "default": {
+        "capability": { "read": "unsupported", "write": "unsupported", "command": "native" },
+        "command": "sim/radios/nav2_standy_flip"
+      } }, "msfs": { "default": {
+        "capability": { "read": "unsupported", "write": "unsupported", "command": "native" },
+        "event": { "event": "NAV2_RADIO_SWAP" }
+      } } }
+    },
+    {
+      "id": "garmin.gns1.coarse_up", "label": "GNS 1 coarse knob up",
+      "kind": "momentary", "valueType": "bool",
+      "desiredCapability": { "read": false, "write": false, "command": true },
+      "defaultUpdate": { "rateMs": 0, "bucket": 1 },
+      "bindings": { "xplane": { "default": {
+        "capability": { "read": "unsupported", "write": "unsupported", "command": "native" },
+        "command": "sim/GPS/g430n1_coarse_up"
+      } } }
+    },
+    {
+      "id": "garmin.gns1.coarse_down", "label": "GNS 1 coarse knob down",
+      "kind": "momentary", "valueType": "bool",
+      "desiredCapability": { "read": false, "write": false, "command": true },
+      "defaultUpdate": { "rateMs": 0, "bucket": 1 },
+      "bindings": { "xplane": { "default": {
+        "capability": { "read": "unsupported", "write": "unsupported", "command": "native" },
+        "command": "sim/GPS/g430n1_coarse_down"
+      } } }
+    },
+    {
+      "id": "garmin.gns1.fine_up", "label": "GNS 1 fine knob up",
+      "kind": "momentary", "valueType": "bool",
+      "desiredCapability": { "read": false, "write": false, "command": true },
+      "defaultUpdate": { "rateMs": 0, "bucket": 1 },
+      "bindings": { "xplane": { "default": {
+        "capability": { "read": "unsupported", "write": "unsupported", "command": "native" },
+        "command": "sim/GPS/g430n1_fine_up"
+      } } }
+    },
+    {
+      "id": "garmin.gns1.fine_down", "label": "GNS 1 fine knob down",
+      "kind": "momentary", "valueType": "bool",
+      "desiredCapability": { "read": false, "write": false, "command": true },
+      "defaultUpdate": { "rateMs": 0, "bucket": 1 },
+      "bindings": { "xplane": { "default": {
+        "capability": { "read": "unsupported", "write": "unsupported", "command": "native" },
+        "command": "sim/GPS/g430n1_fine_down"
+      } } }
+    },
+    {
+      "id": "garmin.gns1.nav_com_toggle", "label": "Toggle GNS 1 COM or NAV tuning",
+      "kind": "momentary", "valueType": "bool",
+      "desiredCapability": { "read": false, "write": false, "command": true },
+      "defaultUpdate": { "rateMs": 0, "bucket": 1 },
+      "bindings": { "xplane": { "default": {
+        "capability": { "read": "unsupported", "write": "unsupported", "command": "native" },
+        "command": "sim/GPS/g430n1_nav_com_tog"
+      } } }
+    },
+    {
+      "id": "engine.all.prop_rpm",
+      "label": "All engine prop RPM controls",
+      "kind": "axis",
+      "valueType": "int",
+      "unit": "percent",
+      "range": { "min": 0, "max": 100 },
+      "desiredCapability": { "read": true, "write": true, "command": false },
+      "defaultUpdate": { "rateMs": 100, "bucket": 1 },
+      "bindings": {
+        "xplane": {
+          "default": {
+            "capability": { "read": "native", "write": "native", "command": "unsupported" },
+            "read": {
+              "dataref": "sim/cockpit2/engine/actuators/prop_rotation_speed_rad_sec",
+              "type": "float_array",
+              "indices": [0, 1],
+              "scale": { "fromMin": 73.29, "fromMax": 282.7, "toMin": 0, "toMax": 100 }
+            },
+            "write": {
+              "strategy": "directSet",
+              "dataref": "sim/cockpit2/engine/actuators/prop_rotation_speed_rad_sec",
+              "type": "float_array",
+              "indices": [0, 1],
+              "scale": { "fromMin": 0, "fromMax": 100, "toMin": 73.29, "toMax": 282.7 }
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "engine.all.mixture",
+      "label": "All engine mixtures",
+      "kind": "axis",
+      "valueType": "int",
+      "unit": "percent",
+      "range": { "min": 0, "max": 100 },
+      "desiredCapability": { "read": true, "write": true, "command": false },
+      "defaultUpdate": { "rateMs": 100, "bucket": 1 },
+      "bindings": {
+        "xplane": {
+          "default": {
+            "capability": { "read": "native", "write": "native", "command": "unsupported" },
+            "read": {
+              "dataref": "sim/cockpit2/engine/actuators/mixture_ratio",
+              "type": "float_array",
+              "indices": [0, 1],
+              "scale": { "fromMin": 0, "fromMax": 1, "toMin": 0, "toMax": 100 }
+            },
+            "write": {
+              "strategy": "directSet",
+              "dataref": "sim/cockpit2/engine/actuators/mixture_ratio",
+              "type": "float_array",
+              "indices": [0, 1],
+              "scale": { "fromMin": 0, "fromMax": 100, "toMin": 0, "toMax": 1 }
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "electrical.battery.1.voltage",
+      "label": "Battery 1 indicated voltage",
+      "kind": "display",
+      "valueType": "int",
+      "unit": "tenths_volt",
+      "range": { "min": 0, "max": 1000 },
+      "desiredCapability": { "read": true, "write": false, "command": false },
+      "defaultUpdate": { "rateMs": 250, "bucket": 1 },
+      "bindings": { "xplane": { "default": {
+        "capability": { "read": "native", "write": "unsupported", "command": "unsupported" },
+        "read": {
+          "dataref": "sim/cockpit2/electrical/battery_voltage_indicated_volts",
+          "type": "float_array",
+          "index": 0,
+          "scale": { "fromMin": 0, "fromMax": 100, "toMin": 0, "toMax": 1000 }
+        }
+      } }, "msfs": { "default": {
+        "capability": { "read": "native", "write": "unsupported", "command": "unsupported" },
+        "read": {
+          "simvar": "ELECTRICAL BATTERY VOLTAGE:1",
+          "unit": "Volts",
+          "type": "float64",
+          "scale": { "fromMin": 0, "fromMax": 100, "toMin": 0, "toMax": 1000 }
+        }
+      } } }
+    },
+    {
+      "id": "navigation.groundspeed",
+      "label": "Groundspeed",
+      "kind": "display",
+      "valueType": "int",
+      "unit": "knots",
+      "range": { "min": 0, "max": 2000 },
+      "desiredCapability": { "read": true, "write": false, "command": false },
+      "defaultUpdate": { "rateMs": 250, "bucket": 1 },
+      "bindings": { "xplane": { "default": {
+        "capability": { "read": "native", "write": "unsupported", "command": "unsupported" },
+        "read": {
+          "dataref": "sim/cockpit2/gauges/indicators/ground_speed_kt",
+          "type": "float",
+          "scale": { "fromMin": 0, "fromMax": 2000, "toMin": 0, "toMax": 2000 }
+        }
+      } }, "msfs": { "default": {
+        "capability": { "read": "native", "write": "unsupported", "command": "unsupported" },
+        "read": {
+          "simvar": "GROUND VELOCITY",
+          "unit": "Knots",
+          "type": "float64",
+          "scale": { "fromMin": 0, "fromMax": 2000, "toMin": 0, "toMax": 2000 }
+        }
+      } } }
     }
   ]
 }

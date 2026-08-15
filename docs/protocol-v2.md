@@ -99,6 +99,20 @@ valueBytes:N
 
 This keeps `0x00` safe inside `string` and `data` payloads.
 
+## Command Actions
+
+Command inputs carry a compact three-byte payload:
+
+```text
+handle:uint16
+action:uint8
+```
+
+Action `1` triggers a command once. Actions `2` and `3` begin and end a
+continuous command, respectively. Firmware sends only state transitions:
+`button(...).triggers(...)` emits one trigger on press, while
+`button(...).startsEnds(...)` emits begin on press and end on release.
+
 ## Profile Shortcut
 
 If the host has a matching behavior profile:

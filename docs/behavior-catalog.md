@@ -21,11 +21,18 @@ const auto* behavior = catalog->find("lights.beacon");
 const auto handle = catalog->handleFor("lights.beacon");
 ```
 
-Resolved X-Plane bindings expose capability status, dataref operations, scalar
+Resolved simulator bindings expose capability status, simulator operations,
+scalar
 or array addressing, numeric scaling, and write strategy. Catalog order is
-currently the source of deterministic session handles; profiles and layered
-catalog merging can replace that policy later without putting transport
-details into the JSON schema.
+the source of deterministic session handles. Profiles override bindings on the
+existing behavior entries, so applying a profile never changes those handles.
+
+Layered loading uses the base catalog followed by zero or more profiles:
+
+```cpp
+auto catalog = cockpitlink::catalog::loadLayeredBehaviorCatalog(
+    { basePath, aircraftProfilePath, userProfilePath }, errors);
+```
 
 ## Behavior Entry
 
@@ -166,16 +173,69 @@ Example state-aware toggle:
 
 ## Catalog Layers
 
-Catalogs should merge in this order:
+Profiles merge in this enforced order:
 
 1. Built-in base catalog.
 2. Simulator-specific catalog.
-3. Aircraft family catalog.
-4. Aircraft/version override.
+3. Aircraft catalog.
+4. Device override.
 5. User local override.
 
-Later entries may override simulator bindings while preserving the same behavior
-ID.
+Later entries override only the named simulator bindings while preserving the
+base behavior definition and protocol handle. A profile cannot introduce an
+unknown behavior or change its kind, value type, range, or desired capability.
+
+Profile files use this shape:
+
+```json
+{
+  "profileVersion": 1,
+  "name": "MSFS Beechcraft King Air 350i",
+  "layer": "aircraft",
+  "match": {
+    "simulator": "msfs",
+    "aircraftTitleContains": ["King Air 350I"]
+  },
+  "behaviors": [
+    {
+      "id": "engine.1.mixture",
+      "bindings": {
+        "msfs": {
+          "default": {
+            "capability": {
+              "read": "unsupported",
+              "write": "native",
+              "command": "unsupported"
+            },
+            "event": { "event": "AXIS_CONDITION_LEVER_1_SET" }
+          }
+        }
+      }
+    }
+  ]
+}
+```
+
+The loader rejects missing profiles, invalid JSON, unknown behavior IDs,
+duplicate overrides within one profile, malformed bindings, and layers supplied
+out of precedence order. Each resolved simulator binding records the path of
+the layer that supplied it for diagnostics and AI-assisted profile development.
+
+The MSFS host accepts the base catalog followed by profile paths:
+
+```powershell
+CockpitLinkMSFS.exe catalog/base-behaviors.json `
+  profiles/aircraft/msfs-king-air-350i.json `
+  profiles/local/my-controls.json
+```
+
+For normal local development, copy
+`profiles/templates/user-profile.json` to `profiles/local/` and edit the copy.
+The entire `profiles/local/` directory is ignored by Git. The MSFS host
+automatically discovers every `.json` file there, sorts them by filename, and
+appends them after explicitly supplied simulator, aircraft, and device layers.
+Invalid local profiles stop startup with validation diagnostics; they are never
+silently skipped.
 
 ## Behavior ID Rules
 
@@ -237,8 +297,8 @@ should present one stable unit to firmware and users.
 
 - Should behavior IDs be fully community-owned, or should the core project
   reserve top-level namespaces?
-- Should aircraft overrides be selected manually, detected automatically, or
-  both?
+- Automatic profile matching still needs to be connected to simulator aircraft
+  lifecycle events; explicit profile paths are currently supported.
 - Should writable toggles prefer direct writable values when available, or
   commands for simulator compatibility?
 - Should devices declare whether they require exact writes, or whether

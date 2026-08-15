@@ -57,7 +57,15 @@ namespace cockpitlink::protocol
     {
         Follows = 1,
         Controls = 2,
-        Triggers = 3
+        Triggers = 3,
+        StartsEnds = 4
+    };
+
+    enum class CommandActionKind : std::uint8_t
+    {
+        Trigger = 1,
+        Begin = 2,
+        End = 3
     };
 
     enum class FailureCode : std::uint8_t

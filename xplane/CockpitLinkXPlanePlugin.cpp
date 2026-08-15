@@ -16,6 +16,7 @@
 #include <algorithm>
 #include <array>
 #include <chrono>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -71,8 +72,30 @@ namespace
         bool xplaneArray = true;
     };
 
+    struct CommandBinding
+    {
+        std::string behaviorId;
+        std::uint16_t handle = 0;
+        std::string command;
+    };
+
+    struct IntReadBinding
+    {
+        std::string behaviorId;
+        std::uint16_t handle = 0;
+        std::string dataRef;
+        int element = 0;
+        bool xplaneArray = false;
+        double inputMinimum = 0.0;
+        double inputMaximum = 1.0;
+        double outputMinimum = 0.0;
+        double outputMaximum = 1.0;
+    };
+
     std::vector<BoolBinding> boolBindings;
     std::vector<PercentAxisBinding> percentAxisBindings;
+    std::vector<CommandBinding> commandBindings;
+    std::vector<IntReadBinding> intReadBindings;
     constexpr std::size_t maxBehaviorHandles = 256;
     constexpr auto baudRate = 115200u;
     constexpr auto openSettleDelay =
@@ -148,6 +171,8 @@ namespace
 
         boolBindings.clear();
         percentAxisBindings.clear();
+        commandBindings.clear();
+        intReadBindings.clear();
 
         for (const auto& behavior : catalog->behaviors())
         {
@@ -161,6 +186,37 @@ namespace
             }
 
             const auto& xplane = *behavior.xplane;
+
+            if (xplane.command)
+            {
+                commandBindings.push_back({
+                    behavior.id,
+                    *handle,
+                    *xplane.command
+                });
+                continue;
+            }
+
+            if (behavior.valueType ==
+                    cockpitlink::catalog::ValueType::Int &&
+                xplane.read && xplane.read->scale)
+            {
+                const auto& operation = *xplane.read;
+                const auto& scale = *operation.scale;
+                intReadBindings.push_back({
+                    behavior.id,
+                    *handle,
+                    operation.dataRef,
+                    operation.index.value_or(
+                        operation.indices.empty() ? 0 :
+                            operation.indices.front()),
+                    operation.type == "float_array",
+                    scale.fromMin,
+                    scale.fromMax,
+                    scale.toMin,
+                    scale.toMax
+                });
+            }
 
             if (behavior.valueType ==
                     cockpitlink::catalog::ValueType::Boolean &&
@@ -231,7 +287,11 @@ namespace
             << boolBindings.size()
             << " bool, "
             << percentAxisBindings.size()
-            << " axis bindings).\n";
+            << " axis, "
+            << commandBindings.size()
+            << " command, "
+            << intReadBindings.size()
+            << " integer read bindings).\n";
         debugLog(message.str());
         return true;
     }
@@ -341,6 +401,51 @@ namespace
             &*found;
     }
 
+    const CommandBinding* commandBindingByBehaviorId(
+        std::string_view behaviorId)
+    {
+        const auto found = std::find_if(
+            commandBindings.begin(),
+            commandBindings.end(),
+            [behaviorId](const CommandBinding& binding)
+            {
+                return binding.behaviorId == behaviorId;
+            });
+        return found == commandBindings.end() ? nullptr : &*found;
+    }
+
+    const CommandBinding* commandBindingByHandle(
+        std::uint16_t handle)
+    {
+        const auto found = std::find_if(
+            commandBindings.begin(),
+            commandBindings.end(),
+            [handle](const CommandBinding& binding)
+            {
+                return binding.handle == handle;
+            });
+        return found == commandBindings.end() ? nullptr : &*found;
+    }
+
+    const IntReadBinding* intReadBindingByBehaviorId(
+        std::string_view behaviorId)
+    {
+        const auto found = std::find_if(
+            intReadBindings.begin(), intReadBindings.end(),
+            [behaviorId](const IntReadBinding& binding)
+            { return binding.behaviorId == behaviorId; });
+        return found == intReadBindings.end() ? nullptr : &*found;
+    }
+
+    const IntReadBinding* intReadBindingByHandle(std::uint16_t handle)
+    {
+        const auto found = std::find_if(
+            intReadBindings.begin(), intReadBindings.end(),
+            [handle](const IntReadBinding& binding)
+            { return binding.handle == handle; });
+        return found == intReadBindings.end() ? nullptr : &*found;
+    }
+
     void copyPluginString(
         char* target,
         const char* value)
@@ -367,6 +472,7 @@ namespace
         float flightLoop()
         {
             tick();
+            drainNextXPlaneCommand();
             return -1.0f;
         }
 
@@ -392,6 +498,14 @@ namespace
             std::uint16_t handle = 0;
             cockpitlink::protocol::ValueType valueType =
                 cockpitlink::protocol::ValueType::Boolean;
+        };
+
+        struct PendingXPlaneCommand
+        {
+            std::string behaviorId;
+            std::string command;
+            cockpitlink::protocol::CommandActionKind action =
+                cockpitlink::protocol::CommandActionKind::Trigger;
         };
 
         static void menuHandler(
@@ -529,10 +643,12 @@ namespace
             percentAxisAssignments_ = 0;
             beaconAssignments_ = 0;
             boolSubscribed_.fill(false);
+            intSubscribed_.fill(false);
             hasSentBoolValue_.fill(false);
             boolNextDue_.fill({});
             lastAxisPercent_.fill(-1);
             pendingAssignments_.clear();
+            pendingXPlaneCommands_.clear();
             nextAssignmentAt_ = {};
         }
 
@@ -699,6 +815,10 @@ namespace
                 handleValueUpdate(frame);
                 break;
 
+            case MessageType::CommandAction:
+                handleCommandAction(frame);
+                break;
+
             default:
                 break;
             }
@@ -710,15 +830,33 @@ namespace
             const auto subscribe =
                 cockpitlink::protocol::decodeSubscribePayload(frame.payload);
 
-            const auto* binding =
-                subscribe ?
-                    boolBindingByHandle(subscribe->handle) :
-                    nullptr;
+            if (!subscribe)
+            {
+                return;
+            }
 
-            if (!subscribe ||
-                binding == nullptr ||
-                subscribe->valueType !=
-                    cockpitlink::protocol::ValueType::Boolean)
+            if (subscribe->valueType ==
+                cockpitlink::protocol::ValueType::Int)
+            {
+                const auto* binding =
+                    intReadBindingByHandle(subscribe->handle);
+                if (binding == nullptr)
+                {
+                    return;
+                }
+                intSubscribed_[binding->handle] = true;
+                intRates_[binding->handle] = std::chrono::milliseconds{
+                    subscribe->rateMs == 0 ? 250 : subscribe->rateMs };
+                intNextDue_[binding->handle] =
+                    std::chrono::steady_clock::now();
+                hasSentIntValue_[binding->handle] = false;
+                return;
+            }
+
+            const auto* binding =
+                boolBindingByHandle(subscribe->handle);
+            if (binding == nullptr || subscribe->valueType !=
+                cockpitlink::protocol::ValueType::Boolean)
             {
                 return;
             }
@@ -792,6 +930,22 @@ namespace
                     << ".\n";
                 debugLog(message.str());
             }
+            else if (const auto* command =
+                commandBindingByBehaviorId(request->behaviorId))
+            {
+                queueBehaviorAssignment(
+                    request->requestId,
+                    command->handle,
+                    cockpitlink::protocol::ValueType::Boolean);
+            }
+            else if (const auto* value =
+                intReadBindingByBehaviorId(request->behaviorId))
+            {
+                queueBehaviorAssignment(
+                    request->requestId,
+                    value->handle,
+                    cockpitlink::protocol::ValueType::Int);
+            }
             else if (const auto* binding =
                 boolBindingByBehaviorId(request->behaviorId))
             {
@@ -812,6 +966,65 @@ namespace
             }
         }
 
+        void handleCommandAction(
+            const cockpitlink::protocol::Frame& frame)
+        {
+            const auto action =
+                cockpitlink::protocol::decodeCommandActionPayload(
+                    frame.payload);
+            const auto* binding =
+                action ? commandBindingByHandle(action->handle) : nullptr;
+
+            if (!action || binding == nullptr)
+            {
+                return;
+            }
+
+            pendingXPlaneCommands_.push_back({
+                binding->behaviorId,
+                binding->command,
+                action->action
+            });
+        }
+
+        void drainNextXPlaneCommand()
+        {
+            if (pendingXPlaneCommands_.empty())
+            {
+                return;
+            }
+
+            PendingXPlaneCommand pending =
+                std::move(pendingXPlaneCommands_.front());
+            pendingXPlaneCommands_.pop_front();
+
+            const auto command =
+                XPLMFindCommand(pending.command.c_str());
+
+            if (command == nullptr)
+            {
+                debugLog(
+                    "CockpitLink: command not found for " +
+                    pending.behaviorId + ": " +
+                    pending.command + ".\n");
+                return;
+            }
+
+            using cockpitlink::protocol::CommandActionKind;
+            switch (pending.action)
+            {
+            case CommandActionKind::Trigger:
+                XPLMCommandOnce(command);
+                break;
+            case CommandActionKind::Begin:
+                XPLMCommandBegin(command);
+                break;
+            case CommandActionKind::End:
+                XPLMCommandEnd(command);
+                break;
+            }
+        }
+
         void tickSubscriptions(
             std::chrono::steady_clock::time_point now)
         {
@@ -827,6 +1040,65 @@ namespace
                     binding,
                     false);
             }
+
+            for (const auto& binding : intReadBindings)
+            {
+                if (intSubscribed_[binding.handle] &&
+                    now >= intNextDue_[binding.handle])
+                {
+                    sendIntValue(binding);
+                }
+            }
+        }
+
+        void sendIntValue(const IntReadBinding& binding)
+        {
+            auto& dataRef = intDataRefs_[binding.handle];
+            if (dataRef == nullptr)
+            {
+                dataRef = XPLMFindDataRef(binding.dataRef.c_str());
+                if (dataRef == nullptr)
+                {
+                    debugLog("CockpitLink: integer read dataref not found for " +
+                        binding.behaviorId + ".\n");
+                    return;
+                }
+            }
+
+            float raw = 0.0f;
+            if (binding.xplaneArray)
+            {
+                XPLMGetDatavf(dataRef, &raw, binding.element, 1);
+            }
+            else
+            {
+                raw = XPLMGetDataf(dataRef);
+            }
+
+            const double normalized =
+                (raw - binding.inputMinimum) /
+                (binding.inputMaximum - binding.inputMinimum);
+            const auto value = static_cast<std::int32_t>(std::lround(
+                binding.outputMinimum +
+                normalized * (binding.outputMaximum - binding.outputMinimum)));
+            intNextDue_[binding.handle] = std::chrono::steady_clock::now() +
+                intRates_[binding.handle];
+
+            if (hasSentIntValue_[binding.handle] &&
+                lastIntValue_[binding.handle] == value)
+            {
+                return;
+            }
+
+            queueLatestFrame(binding.handle, {
+                cockpitlink::protocol::MessageType::ValueUpdate,
+                0,
+                nextSequence_++,
+                cockpitlink::protocol::encodeIntValueUpdatePayload(
+                    binding.handle, value)
+            });
+            lastIntValue_[binding.handle] = value;
+            hasSentIntValue_[binding.handle] = true;
         }
 
         void sendBoolValue(
@@ -1065,19 +1337,11 @@ namespace
 
                 if (currentValue != value)
                 {
-                    const auto command =
-                        XPLMFindCommand(
-                            binding.toggleCommand.c_str());
-
-                    if (command == nullptr)
-                    {
-                        debugLog(
-                            "CockpitLink: toggle command not found for " +
-                            binding.behaviorId + ".\n");
-                        return;
-                    }
-
-                    XPLMCommandOnce(command);
+                    pendingXPlaneCommands_.push_back({
+                        binding.behaviorId,
+                        binding.toggleCommand,
+                        cockpitlink::protocol::CommandActionKind::Trigger
+                    });
                 }
             }
             else
@@ -1268,6 +1532,13 @@ namespace
         std::array<std::chrono::steady_clock::time_point, maxBehaviorHandle_>
             boolNextDue_{};
         std::array<XPLMDataRef, maxBehaviorHandle_> boolDataRefs_{};
+        std::array<bool, maxBehaviorHandle_> intSubscribed_{};
+        std::array<bool, maxBehaviorHandle_> hasSentIntValue_{};
+        std::array<std::int32_t, maxBehaviorHandle_> lastIntValue_{};
+        std::array<std::chrono::milliseconds, maxBehaviorHandle_> intRates_{};
+        std::array<std::chrono::steady_clock::time_point, maxBehaviorHandle_>
+            intNextDue_{};
+        std::array<XPLMDataRef, maxBehaviorHandle_> intDataRefs_{};
         std::array<std::int32_t, maxBehaviorHandle_> lastAxisPercent_{
             -1,
             -1,
@@ -1280,6 +1551,7 @@ namespace
         };
         std::array<XPLMDataRef, maxBehaviorHandle_> axisDataRefs_{};
         std::deque<PendingBehaviorAssignment> pendingAssignments_;
+        std::deque<PendingXPlaneCommand> pendingXPlaneCommands_;
         std::chrono::steady_clock::time_point nextAssignmentAt_{};
         XPLMMenuID menu_ = nullptr;
         int pluginsMenuItemIndex_ = -1;

@@ -1,0 +1,132 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1500" height="1020" viewBox="0 0 1500 1020">
+  <defs>
+    <style>
+      .bg { fill: #f7f8fa; }
+      .mega { fill: #087d8e; stroke: #075967; stroke-width: 3; }
+      .group { fill: #fff; stroke: #52616b; stroke-width: 2; }
+      .planned { fill: #fff8df; stroke: #d49a00; stroke-width: 3; stroke-dasharray: 10 7; }
+      .title { font: 700 28px Arial, sans-serif; fill: #173042; }
+      .head { font: 700 20px Arial, sans-serif; fill: #173042; }
+      .text { font: 16px Arial, sans-serif; fill: #263640; }
+      .small { font: 14px Arial, sans-serif; fill: #52616b; }
+      .white { fill: #fff; }
+      .pin { font: 700 15px Consolas, monospace; fill: #fff; }
+      .analog { stroke: #df6c26; stroke-width: 4; fill: none; }
+      .digital { stroke: #2878c8; stroke-width: 4; fill: none; }
+      .i2c { stroke: #7e57c2; stroke-width: 4; fill: none; }
+      .power { stroke: #df3f3f; stroke-width: 4; fill: none; }
+      .ground { stroke: #333; stroke-width: 4; fill: none; }
+      .future { stroke: #d49a00; stroke-width: 4; stroke-dasharray: 8 6; fill: none; }
+    </style>
+  </defs>
+  <rect class="bg" width="1500" height="1020"/>
+  <text x="50" y="48" class="title">CockpitLink ButtonBox — Arduino Mega 2560</text>
+  <text x="50" y="75" class="small">Current firmware wiring including multifunction dual encoder (D33–D37)</text>
+
+  <!-- Arduino -->
+  <rect x="555" y="120" width="390" height="780" rx="24" class="mega"/>
+  <text x="750" y="165" text-anchor="middle" class="head white">ARDUINO MEGA 2560</text>
+  <text x="750" y="192" text-anchor="middle" class="small white">CockpitLink ButtonBox controller</text>
+
+  <!-- left analog pins -->
+  <g>
+    <text x="580" y="235" class="head white">ANALOG</text>
+    <text x="580" y="275" class="pin">A0  ROLL</text><circle cx="555" cy="270" r="6" fill="#fff"/>
+    <text x="580" y="315" class="pin">A1  PITCH</text><circle cx="555" cy="310" r="6" fill="#fff"/>
+    <text x="580" y="355" class="pin">A2  YAW</text><circle cx="555" cy="350" r="6" fill="#fff"/>
+    <text x="580" y="395" class="pin">A3  RESERVED</text><circle cx="555" cy="390" r="6" fill="#fff"/>
+    <text x="580" y="435" class="pin">A4  THR 1</text><circle cx="555" cy="430" r="6" fill="#fff"/>
+    <text x="580" y="475" class="pin">A5  THR 2</text><circle cx="555" cy="470" r="6" fill="#fff"/>
+    <text x="580" y="515" class="pin">A6  PROP 1</text><circle cx="555" cy="510" r="6" fill="#fff"/>
+    <text x="580" y="555" class="pin">A7  PROP 2</text><circle cx="555" cy="550" r="6" fill="#fff"/>
+    <text x="580" y="595" class="pin">A8  MIX 1</text><circle cx="555" cy="590" r="6" fill="#fff"/>
+    <text x="580" y="635" class="pin">A9  MIX 2</text><circle cx="555" cy="630" r="6" fill="#fff"/>
+  </g>
+
+  <!-- right digital pins -->
+  <g>
+    <text x="775" y="235" class="head white">DIGITAL</text>
+    <text x="775" y="275" class="pin">D2 / D3  HDG ENC A/B</text><circle cx="945" cy="270" r="6" fill="#fff"/>
+    <text x="775" y="315" class="pin">D20/21  SDA/SCL</text><circle cx="945" cy="310" r="6" fill="#fff"/>
+    <text x="775" y="355" class="pin">D22  BEACON</text><circle cx="945" cy="350" r="6" fill="#fff"/>
+    <text x="775" y="395" class="pin">D23  STROBE</text><circle cx="945" cy="390" r="6" fill="#fff"/>
+    <text x="775" y="435" class="pin">D24  GEAR</text><circle cx="945" cy="430" r="6" fill="#fff"/>
+    <text x="775" y="475" class="pin">D25/26  FLAPS</text><circle cx="945" cy="470" r="6" fill="#fff"/>
+    <text x="775" y="515" class="pin">D27/28  ELEV TRIM</text><circle cx="945" cy="510" r="6" fill="#fff"/>
+    <text x="775" y="555" class="pin">D29/30  RUD TRIM</text><circle cx="945" cy="550" r="6" fill="#fff"/>
+    <text x="775" y="595" class="pin">D31  JOYSTICK BTN</text><circle cx="945" cy="590" r="6" fill="#fff"/>
+    <text x="775" y="635" class="pin">D32  HDG SYNC</text><circle cx="945" cy="630" r="6" fill="#fff"/>
+    <text x="775" y="675" class="pin">D33/34  OUTER A/B</text><circle cx="945" cy="670" r="6" fill="#fff"/>
+    <text x="775" y="715" class="pin">D35/36  INNER A/B</text><circle cx="945" cy="710" r="6" fill="#fff"/>
+    <text x="775" y="755" class="pin">D37  DUAL ENC BTN</text><circle cx="945" cy="750" r="6" fill="#fff"/>
+    <text x="635" y="835" class="pin">5V</text><circle cx="675" cy="830" r="6" fill="#fff"/>
+    <text x="785" y="835" class="pin">GND</text><circle cx="835" cy="830" r="6" fill="#fff"/>
+  </g>
+
+  <!-- left devices -->
+  <rect x="50" y="120" width="430" height="165" rx="14" class="group"/>
+  <text x="70" y="150" class="head">3-axis joystick</text>
+  <text x="70" y="181" class="text">Roll wiper → A0</text>
+  <text x="70" y="207" class="text">Pitch wiper → A1</text>
+  <text x="70" y="233" class="text">Yaw wiper → A2</text>
+  <text x="70" y="259" class="text">Pushbutton → D31; common → GND</text>
+  <path d="M480 180 H520 V270 H555 M480 205 H525 V310 H555 M480 230 H530 V350 H555" class="analog"/>
+
+  <rect x="50" y="320" width="430" height="300" rx="14" class="group"/>
+  <text x="70" y="350" class="head">Six engine sliders</text>
+  <text x="70" y="383" class="text">Throttle 1 / 2 wipers → A4 / A5</text>
+  <text x="70" y="415" class="text">Propeller 1 / 2 wipers → A6 / A7</text>
+  <text x="70" y="447" class="text">Mixture 1 / 2 wipers → A8 / A9</text>
+  <text x="70" y="495" class="small">Each potentiometer:</text>
+  <text x="70" y="520" class="text">outer terminals → 5V and GND</text>
+  <text x="70" y="548" class="text">center terminal (wiper) → analog pin</text>
+  <text x="70" y="590" class="small">A3 remains open for a future analog input.</text>
+  <path d="M480 380 H515 V430 H555 M480 410 H510 V470 H555 M480 440 H505 V510 H555 M480 465 H500 V550 H555 M480 490 H495 V590 H555 M480 515 H490 V630 H555" class="analog"/>
+
+  <rect x="50" y="655" width="430" height="190" rx="14" class="group"/>
+  <text x="70" y="687" class="head">16×2 I²C LCD — address 0x27</text>
+  <text x="70" y="722" class="text">SDA → D20 / SDA</text>
+  <text x="70" y="752" class="text">SCL → D21 / SCL</text>
+  <text x="70" y="782" class="text">VCC → 5V</text>
+  <text x="70" y="812" class="text">GND → GND</text>
+  <path d="M480 720 H520 V310 H555" class="i2c"/>
+
+  <!-- right devices -->
+  <rect x="1020" y="120" width="430" height="190" rx="14" class="group"/>
+  <text x="1040" y="150" class="head">Existing heading encoder</text>
+  <text x="1040" y="184" class="text">Encoder A / B → D2 / D3</text>
+  <text x="1040" y="214" class="text">Pushbutton → D32</text>
+  <text x="1040" y="244" class="text">Both common terminals → GND</text>
+  <text x="1040" y="280" class="small">Heading select with push-to-sync</text>
+  <path d="M1020 190 H985 V270 H945 M1020 220 H990 V630 H945" class="digital"/>
+
+  <rect x="1020" y="340" width="430" height="290" rx="14" class="group"/>
+  <text x="1040" y="370" class="head">Switch bank</text>
+  <text x="1040" y="405" class="text">SPDT: D22 beacon, D23 strobe, D24 gear</text>
+  <text x="1040" y="445" class="text">ON-OFF-ON: D25 / D26 flaps</text>
+  <text x="1040" y="478" class="text">ON-OFF-ON: D27 / D28 elevator trim</text>
+  <text x="1040" y="511" class="text">ON-OFF-ON: D29 / D30 rudder trim</text>
+  <text x="1040" y="555" class="small">All switch common terminals → GND.</text>
+  <text x="1040" y="581" class="small">Digital inputs use internal pull-ups.</text>
+  <path d="M1020 400 H990 V350 H945 M1020 420 H985 V390 H945 M1020 440 H980 V430 H945 M1020 470 H975 V470 H945 M1020 500 H970 V510 H945 M1020 530 H965 V550 H945" class="digital"/>
+
+  <rect x="1020" y="670" width="430" height="205" rx="14" class="group"/>
+  <text x="1040" y="702" class="head">Multifunction dual encoder</text>
+  <text x="1040" y="738" class="text">Outer A / B → D33 / D34</text>
+  <text x="1040" y="770" class="text">Inner A / B → D35 / D36</text>
+  <text x="1040" y="802" class="text">Pushbutton → D37; cycles mode</text>
+  <text x="1040" y="834" class="text">Modes include AP, COM1/2, NAV1/2</text>
+  <path d="M1020 735 H985 V670 H945 M1020 770 H980 V710 H945 M1020 805 H975 V750 H945" class="digital"/>
+
+  <!-- buses and legend -->
+  <path d="M675 830 V940 H420" class="power"/>
+  <path d="M835 830 V965 H1080" class="ground"/>
+  <text x="50" y="950" class="small">Color key:</text>
+  <line x1="125" y1="945" x2="175" y2="945" class="analog"/><text x="185" y="950" class="small">analog signal</text>
+  <line x1="315" y1="945" x2="365" y2="945" class="digital"/><text x="375" y="950" class="small">digital signal</text>
+  <line x1="520" y1="945" x2="570" y2="945" class="i2c"/><text x="580" y="950" class="small">I²C</text>
+  <line x1="670" y1="945" x2="720" y2="945" class="power"/><text x="730" y="950" class="small">5V</text>
+  <line x1="805" y1="945" x2="855" y2="945" class="ground"/><text x="865" y="950" class="small">GND/common</text>
+  <line x1="1020" y1="945" x2="1070" y2="945" class="future"/><text x="1080" y="950" class="small">reserved/future</text>
+  <text x="50" y="995" class="small">Signal diagram—not a physical connector-orientation drawing. Confirm encoder and switch terminal labels with a continuity meter.</text>
+</svg>

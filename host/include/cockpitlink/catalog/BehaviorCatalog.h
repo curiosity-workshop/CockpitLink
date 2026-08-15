@@ -79,7 +79,38 @@ namespace cockpitlink::catalog
         std::optional<DataRefOperation> write;
         std::optional<WriteStrategy> writeStrategy;
         std::optional<std::string> toggleCommand;
+        std::optional<std::string> command;
         bool requiresRead = false;
+    };
+
+    struct MsfsSimVarOperation
+    {
+        std::string simVar;
+        std::string unit;
+        std::string type;
+        std::optional<Scale> scale;
+    };
+
+    struct MsfsEventOperation
+    {
+        std::string event;
+        std::optional<Scale> scale;
+    };
+
+    struct MsfsInputEventOperation
+    {
+        std::string name;
+        std::optional<Scale> scale;
+        std::optional<std::uint16_t> steps;
+    };
+
+    struct MsfsBinding
+    {
+        DirectionCapability capability;
+        std::optional<MsfsSimVarOperation> read;
+        std::optional<MsfsSimVarOperation> write;
+        std::optional<MsfsEventOperation> event;
+        std::optional<MsfsInputEventOperation> inputEvent;
     };
 
     struct Behavior
@@ -96,6 +127,9 @@ namespace cockpitlink::catalog
         std::optional<double> rangeMinimum;
         std::optional<double> rangeMaximum;
         std::optional<XPlaneBinding> xplane;
+        std::optional<MsfsBinding> msfs;
+        std::string xplaneSource;
+        std::string msfsSource;
     };
 
     class BehaviorCatalog
@@ -118,6 +152,9 @@ namespace cockpitlink::catalog
         friend std::optional<BehaviorCatalog> loadBehaviorCatalog(
             const std::filesystem::path&,
             std::vector<std::string>&);
+        friend std::optional<BehaviorCatalog> loadLayeredBehaviorCatalog(
+            const std::vector<std::filesystem::path>&,
+            std::vector<std::string>&);
 
         std::uint32_t version_ = 0;
         std::string name_;
@@ -126,5 +163,9 @@ namespace cockpitlink::catalog
 
     std::optional<BehaviorCatalog> loadBehaviorCatalog(
         const std::filesystem::path& path,
+        std::vector<std::string>& errors);
+
+    std::optional<BehaviorCatalog> loadLayeredBehaviorCatalog(
+        const std::vector<std::filesystem::path>& layers,
         std::vector<std::string>& errors);
 }
