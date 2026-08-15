@@ -33,6 +33,20 @@ simulation targets.
 - `firmware/arduino/libraries/CockpitLink` contains the starter Arduino
   library shell.
 
+## Builder Documentation
+
+- `docs/ai-build-guide.md` defines the supported AI-assisted hardware,
+  profile, validation, and promotion workflow.
+- `docs/diagnostic-report.md` is the standard evidence template for profile
+  work and troubleshooting.
+- `docs/buttonbox-wiring.md` documents the Arduino Mega reference device.
+- `AGENTS.md` gives repository-aware coding assistants the non-negotiable
+  catalog and testing boundaries.
+
+Start with the AI build guide before changing firmware bindings or simulator
+profiles. During ordinary development, treat the base catalog as read-only and
+put private work in the Git-ignored `profiles/local/` directory.
+
 ## Build
 
 CockpitLink is independently buildable from this folder:

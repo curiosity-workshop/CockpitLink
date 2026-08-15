@@ -95,8 +95,11 @@ Catalogs merge in this order:
 
 1. Built-in base catalog.
 2. Simulator-specific catalog.
-3. Aircraft family catalog.
-4. Aircraft/version override.
+3. Aircraft catalog.
+4. Device override.
 5. User local override.
 
-Later layers may override simulator bindings while preserving behavior IDs.
+Later layers may override simulator bindings while preserving behavior IDs,
+canonical definitions, and protocol handles. Private user profiles belong in
+the Git-ignored `profiles/local/` directory and are loaded in filename order.
+See `ai-build-guide.md` for the authoring and validation workflow.
