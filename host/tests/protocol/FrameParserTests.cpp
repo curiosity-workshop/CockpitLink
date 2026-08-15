@@ -48,17 +48,20 @@ int main()
     using cockpitlink::protocol::HelloPayload;
     using cockpitlink::protocol::MessageType;
     using cockpitlink::protocol::BehaviorRole;
+    using cockpitlink::protocol::CommandActionKind;
     using cockpitlink::protocol::CapabilityBehaviorIds;
     using cockpitlink::protocol::CapabilityBinaryValues;
     using cockpitlink::protocol::CapabilitySerial;
     using cockpitlink::protocol::ValueType;
     using cockpitlink::protocol::decodeBehaviorAssignmentPayload;
     using cockpitlink::protocol::decodeBehaviorRequestPayload;
+    using cockpitlink::protocol::decodeCommandActionPayload;
     using cockpitlink::protocol::decodeHelloPayload;
     using cockpitlink::protocol::decodeSubscribePayload;
     using cockpitlink::protocol::decodeValueUpdatePayload;
     using cockpitlink::protocol::encodeBehaviorAssignmentPayload;
     using cockpitlink::protocol::encodeBehaviorRequestPayload;
+    using cockpitlink::protocol::encodeCommandActionPayload;
     using cockpitlink::protocol::encodeBoolValueUpdatePayload;
     using cockpitlink::protocol::encodeFrame;
     using cockpitlink::protocol::encodeHelloPayload;
@@ -308,6 +311,18 @@ int main()
             formatTraceLine(intUpdateFrame, false).find("value=75") !=
                 std::string::npos,
             "int value update trace should include decoded value");
+
+        const auto commandPayload =
+            encodeCommandActionPayload({
+                44,
+                CommandActionKind::Begin
+            });
+        const auto command =
+            decodeCommandActionPayload(commandPayload);
+        passed &= expect(
+            command && command->handle == 44 &&
+                command->action == CommandActionKind::Begin,
+            "command action decode failed");
     }
 
     return passed ? 0 : 1;

@@ -50,6 +50,12 @@ namespace cockpitlink::protocol
         std::vector<std::byte> value;
     };
 
+    struct CommandActionPayload
+    {
+        std::uint16_t handle = 0;
+        CommandActionKind action = CommandActionKind::Trigger;
+    };
+
     std::vector<std::byte> encodeHelloPayload(
         const HelloPayload& payload);
 
@@ -83,6 +89,12 @@ namespace cockpitlink::protocol
         std::int32_t value);
 
     std::optional<ValueUpdatePayload> decodeValueUpdatePayload(
+        std::span<const std::byte> payload);
+
+    std::vector<std::byte> encodeCommandActionPayload(
+        const CommandActionPayload& payload);
+
+    std::optional<CommandActionPayload> decodeCommandActionPayload(
         std::span<const std::byte> payload);
 
     bool hasCapability(

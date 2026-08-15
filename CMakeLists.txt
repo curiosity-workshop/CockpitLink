@@ -11,6 +11,32 @@ option(COCKPITLINK_BUILD_XPLANE_PLUGIN
     "Build the CockpitLink X-Plane plugin target"
     OFF)
 
+option(COCKPITLINK_BUILD_MSFS_PROBE
+    "Build the CockpitLink MSFS SimConnect connection probe"
+    OFF)
+
+set(COCKPITLINK_MSFS_SDK_PATH
+    ""
+    CACHE PATH
+    "Path to the Microsoft Flight Simulator SDK root")
+
+if(NOT COCKPITLINK_MSFS_SDK_PATH AND DEFINED ENV{MSFS_SDK_ROOT})
+    set(COCKPITLINK_MSFS_SDK_PATH
+        "$ENV{MSFS_SDK_ROOT}"
+        CACHE PATH
+        "Path to the Microsoft Flight Simulator SDK root"
+        FORCE)
+endif()
+
+if(WIN32 AND NOT COCKPITLINK_MSFS_SDK_PATH AND
+    EXISTS "C:/MSFS SDK/SimConnect SDK/include/SimConnect.h")
+    set(COCKPITLINK_MSFS_SDK_PATH
+        "C:/MSFS SDK"
+        CACHE PATH
+        "Path to the Microsoft Flight Simulator SDK root"
+        FORCE)
+endif()
+
 set(COCKPITLINK_XPLANE_SDK_PATH
     ""
     CACHE PATH
@@ -34,6 +60,94 @@ if(NOT COCKPITLINK_XPLANE_SDK_PATH AND DEFINED ENV{XPLANE_SDK_ROOT})
         FORCE)
 endif()
 
+if(COCKPITLINK_BUILD_MSFS_PROBE)
+    if(NOT WIN32)
+        message(FATAL_ERROR
+            "The native SimConnect probe currently requires Windows.")
+    endif()
+
+    set(COCKPITLINK_SIMCONNECT_ROOT
+        "${COCKPITLINK_MSFS_SDK_PATH}/SimConnect SDK")
+    set(COCKPITLINK_SIMCONNECT_INCLUDE_DIR
+        "${COCKPITLINK_SIMCONNECT_ROOT}/include")
+    set(COCKPITLINK_SIMCONNECT_LIBRARY
+        "${COCKPITLINK_SIMCONNECT_ROOT}/lib/SimConnect.lib")
+    set(COCKPITLINK_SIMCONNECT_DLL
+        "${COCKPITLINK_SIMCONNECT_ROOT}/lib/SimConnect.dll")
+
+    if(NOT EXISTS "${COCKPITLINK_SIMCONNECT_INCLUDE_DIR}/SimConnect.h" OR
+        NOT EXISTS "${COCKPITLINK_SIMCONNECT_LIBRARY}" OR
+        NOT EXISTS "${COCKPITLINK_SIMCONNECT_DLL}")
+        message(FATAL_ERROR
+            "COCKPITLINK_MSFS_SDK_PATH must point to an SDK containing "
+            "SimConnect SDK/include/SimConnect.h and SimConnect SDK/lib.")
+    endif()
+
+    add_executable(CockpitLinkMSFSProbe
+        msfs/CockpitLinkMSFSProbe.cpp
+    )
+
+    add_executable(CockpitLinkMSFS
+        msfs/CockpitLinkMSFS.cpp
+    )
+
+    target_include_directories(CockpitLinkMSFSProbe
+        PRIVATE
+            "${COCKPITLINK_SIMCONNECT_INCLUDE_DIR}"
+    )
+
+    target_include_directories(CockpitLinkMSFS
+        PRIVATE
+            "${COCKPITLINK_SIMCONNECT_INCLUDE_DIR}"
+    )
+
+    target_link_libraries(CockpitLinkMSFSProbe
+        PRIVATE
+            "${COCKPITLINK_SIMCONNECT_LIBRARY}"
+    )
+
+    target_link_libraries(CockpitLinkMSFS
+        PRIVATE
+            CockpitLinkHost
+            "${COCKPITLINK_SIMCONNECT_LIBRARY}"
+    )
+
+    add_custom_command(
+        TARGET CockpitLinkMSFSProbe
+        POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${COCKPITLINK_SIMCONNECT_DLL}"
+                "$<TARGET_FILE_DIR:CockpitLinkMSFSProbe>/SimConnect.dll"
+        COMMENT "Copying the SimConnect runtime beside CockpitLinkMSFSProbe"
+    )
+
+    add_custom_command(
+        TARGET CockpitLinkMSFS
+        POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${COCKPITLINK_SIMCONNECT_DLL}"
+                "$<TARGET_FILE_DIR:CockpitLinkMSFS>/SimConnect.dll"
+        COMMAND ${CMAKE_COMMAND} -E make_directory
+                "$<TARGET_FILE_DIR:CockpitLinkMSFS>/catalog"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${CMAKE_CURRENT_SOURCE_DIR}/catalog/base-behaviors.json"
+                "$<TARGET_FILE_DIR:CockpitLinkMSFS>/catalog/base-behaviors.json"
+        COMMAND ${CMAKE_COMMAND} -E make_directory
+                "$<TARGET_FILE_DIR:CockpitLinkMSFS>/profiles/aircraft"
+        COMMAND ${CMAKE_COMMAND} -E make_directory
+                "$<TARGET_FILE_DIR:CockpitLinkMSFS>/profiles/local"
+        COMMAND ${CMAKE_COMMAND} -E make_directory
+                "$<TARGET_FILE_DIR:CockpitLinkMSFS>/profiles/templates"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${CMAKE_CURRENT_SOURCE_DIR}/profiles/aircraft/msfs-king-air-350i.json"
+                "$<TARGET_FILE_DIR:CockpitLinkMSFS>/profiles/aircraft/msfs-king-air-350i.json"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${CMAKE_CURRENT_SOURCE_DIR}/profiles/templates/user-profile.json"
+                "$<TARGET_FILE_DIR:CockpitLinkMSFS>/profiles/templates/user-profile.json"
+        COMMENT "Packaging CockpitLink MSFS runtime"
+    )
+endif()
+
 if(NOT COCKPITLINK_XPLANE_SDK_PATH AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/../third_party/xplane_sdk/CHeaders/XPLM/XPLMDataAccess.h")
     set(COCKPITLINK_XPLANE_SDK_PATH
         "${CMAKE_CURRENT_SOURCE_DIR}/../third_party/xplane_sdk"
@@ -49,6 +163,7 @@ add_library(CockpitLinkHost
     host/src/protocol/FrameParser.cpp
     host/src/protocol/Payloads.cpp
     host/src/protocol/TraceFormatter.cpp
+    host/src/runtime/DeviceRuntime.cpp
     host/src/serial/SerialDeviceClassifier.cpp
     host/src/serial/WindowsSerialEnumerator.cpp
     host/src/serial/WindowsSerialTransport.cpp
@@ -105,6 +220,8 @@ add_test(
     NAME CockpitLinkCatalogTests
     COMMAND CockpitLinkCatalogTests
         ${CMAKE_CURRENT_SOURCE_DIR}/catalog/base-behaviors.json
+        ${CMAKE_CURRENT_SOURCE_DIR}/profiles/aircraft/msfs-king-air-350i.json
+        ${CMAKE_CURRENT_SOURCE_DIR}/profiles/templates/user-profile.json
 )
 
 add_executable(CockpitLinkTransportTests

@@ -706,6 +706,8 @@ namespace
             *writeCapability,
             *commandCapability
         };
+        result.command =
+            stringField(*defaultBinding, "command");
 
         if (const auto* read = objectField(*defaultBinding, "read"))
         {
@@ -745,6 +747,153 @@ namespace
             }
         }
 
+        return result;
+    }
+
+    std::optional<cockpitlink::catalog::MsfsSimVarOperation>
+    parseMsfsSimVar(
+        const JsonObject& object,
+        std::vector<std::string>& errors,
+        const std::string& context)
+    {
+        const auto simVar = stringField(object, "simvar");
+        const auto unit = stringField(object, "unit");
+        const auto type = stringField(object, "type");
+        if (!simVar || !unit || !type)
+        {
+            errors.push_back(
+                context + " requires simvar, unit, and type");
+            return std::nullopt;
+        }
+
+        cockpitlink::catalog::MsfsSimVarOperation result;
+        result.simVar = *simVar;
+        result.unit = *unit;
+        result.type = *type;
+        if (const auto* scale = objectField(object, "scale"))
+        {
+            result.scale = parseScale(*scale, errors, context);
+        }
+        return result;
+    }
+
+    std::optional<cockpitlink::catalog::MsfsEventOperation>
+    parseMsfsEvent(
+        const JsonObject& object,
+        std::vector<std::string>& errors,
+        const std::string& context)
+    {
+        const auto event = stringField(object, "event");
+        if (!event)
+        {
+            errors.push_back(context + " requires event");
+            return std::nullopt;
+        }
+
+        cockpitlink::catalog::MsfsEventOperation result;
+        result.event = *event;
+        if (const auto* scale = objectField(object, "scale"))
+        {
+            result.scale = parseScale(*scale, errors, context);
+        }
+        return result;
+    }
+
+    std::optional<cockpitlink::catalog::MsfsInputEventOperation>
+    parseMsfsInputEvent(
+        const JsonObject& object,
+        std::vector<std::string>& errors,
+        const std::string& context)
+    {
+        const auto name = stringField(object, "name");
+        if (!name || name->empty())
+        {
+            errors.push_back(context + " requires name");
+            return std::nullopt;
+        }
+
+        cockpitlink::catalog::MsfsInputEventOperation result;
+        result.name = *name;
+        if (const auto* scale = objectField(object, "scale"))
+        {
+            result.scale = parseScale(*scale, errors, context);
+        }
+        if (const auto steps = numberField(object, "steps"))
+        {
+            if (*steps < 2 || *steps > 256 ||
+                *steps != static_cast<std::uint16_t>(*steps))
+            {
+                errors.push_back(context +
+                    " steps must be an integer from 2 through 256");
+            }
+            else
+            {
+                result.steps = static_cast<std::uint16_t>(*steps);
+            }
+        }
+        return result;
+    }
+
+    std::optional<cockpitlink::catalog::MsfsBinding>
+    parseMsfsBinding(
+        const JsonObject& object,
+        std::vector<std::string>& errors,
+        const std::string& behaviorId)
+    {
+        const auto* defaultBinding = objectField(object, "default");
+        if (!defaultBinding)
+        {
+            errors.push_back(behaviorId + " msfs binding requires default");
+            return std::nullopt;
+        }
+
+        const auto* capabilities =
+            objectField(*defaultBinding, "capability");
+        if (!capabilities)
+        {
+            errors.push_back(
+                behaviorId + " msfs binding requires capability");
+            return std::nullopt;
+        }
+
+        const auto readCapability = capability(*capabilities, "read");
+        const auto writeCapability = capability(*capabilities, "write");
+        const auto commandCapability = capability(*capabilities, "command");
+        if (!readCapability || !writeCapability || !commandCapability)
+        {
+            errors.push_back(
+                behaviorId + " msfs capability values are invalid");
+            return std::nullopt;
+        }
+
+        cockpitlink::catalog::MsfsBinding result;
+        result.capability = {
+            *readCapability,
+            *writeCapability,
+            *commandCapability
+        };
+        if (const auto* read = objectField(*defaultBinding, "read"))
+        {
+            result.read = parseMsfsSimVar(
+                *read, errors, behaviorId + " msfs read");
+        }
+        if (const auto* write = objectField(*defaultBinding, "write"))
+        {
+            result.write = parseMsfsSimVar(
+                *write, errors, behaviorId + " msfs write");
+        }
+        if (const auto* event = objectField(*defaultBinding, "event"))
+        {
+            result.event = parseMsfsEvent(
+                *event, errors, behaviorId + " msfs event");
+        }
+        if (const auto* inputEvent =
+            objectField(*defaultBinding, "inputEvent"))
+        {
+            result.inputEvent = parseMsfsInputEvent(
+                *inputEvent, errors,
+                behaviorId + " msfs inputEvent");
+        }
         return result;
     }
 }
@@ -1016,11 +1165,21 @@ namespace cockpitlink::catalog
             {
                 errors.push_back(behavior.id + " bindings are required");
             }
-            else if (const auto* xplane =
-                objectField(*bindings, "xplane"))
+            else
             {
-                behavior.xplane =
-                    parseXPlaneBinding(*xplane, errors, behavior.id);
+                if (const auto* xplane =
+                    objectField(*bindings, "xplane"))
+                {
+                    behavior.xplane =
+                        parseXPlaneBinding(*xplane, errors, behavior.id);
+                    behavior.xplaneSource = path.string();
+                }
+                if (const auto* msfs = objectField(*bindings, "msfs"))
+                {
+                    behavior.msfs =
+                        parseMsfsBinding(*msfs, errors, behavior.id);
+                    behavior.msfsSource = path.string();
+                }
             }
 
             catalog.behaviors_.push_back(std::move(behavior));
@@ -1036,5 +1195,178 @@ namespace cockpitlink::catalog
         return errors.empty() ?
             std::optional<BehaviorCatalog>{ std::move(catalog) } :
             std::nullopt;
+    }
+
+    std::optional<BehaviorCatalog> loadLayeredBehaviorCatalog(
+        const std::vector<std::filesystem::path>& layers,
+        std::vector<std::string>& errors)
+    {
+        errors.clear();
+        if (layers.empty())
+        {
+            errors.push_back("catalog stack requires a base catalog");
+            return std::nullopt;
+        }
+
+        auto catalog = loadBehaviorCatalog(layers.front(), errors);
+        if (!catalog)
+        {
+            return std::nullopt;
+        }
+
+        const auto layerRank = [](std::string_view layer)
+            -> std::optional<int>
+        {
+            if (layer == "simulator") return 1;
+            if (layer == "aircraft") return 2;
+            if (layer == "device") return 3;
+            if (layer == "user") return 4;
+            return std::nullopt;
+        };
+
+        int previousRank = 0;
+        for (std::size_t layerIndex = 1;
+            layerIndex < layers.size(); ++layerIndex)
+        {
+            const auto& path = layers[layerIndex];
+            std::ifstream input{ path, std::ios::binary };
+            if (!input)
+            {
+                errors.push_back("cannot open catalog profile: " +
+                    path.string());
+                continue;
+            }
+
+            std::ostringstream buffer;
+            buffer << input.rdbuf();
+            JsonValue root;
+            try
+            {
+                root = JsonParser{ buffer.str() }.parse();
+            }
+            catch (const std::exception& exception)
+            {
+                errors.push_back(path.string() + ": invalid JSON: " +
+                    exception.what());
+                continue;
+            }
+
+            const auto* rootObject = root.object();
+            if (!rootObject)
+            {
+                errors.push_back(path.string() +
+                    ": profile root must be an object");
+                continue;
+            }
+
+            const auto version = numberField(*rootObject, "profileVersion");
+            const auto name = stringField(*rootObject, "name");
+            const auto layer = stringField(*rootObject, "layer");
+            const auto rank = layer ? layerRank(*layer) : std::nullopt;
+            if (!version || *version != 1)
+            {
+                errors.push_back(path.string() +
+                    ": profileVersion must be 1");
+            }
+            if (!name || name->empty())
+            {
+                errors.push_back(path.string() +
+                    ": profile name is required");
+            }
+            if (!rank)
+            {
+                errors.push_back(path.string() +
+                    ": layer must be simulator, aircraft, device, or user");
+            }
+            else if (*rank < previousRank)
+            {
+                errors.push_back(path.string() +
+                    ": profile layers are out of precedence order");
+            }
+            else
+            {
+                previousRank = *rank;
+            }
+
+            const auto* behaviorValues = field(*rootObject, "behaviors");
+            const auto* behaviors = behaviorValues ?
+                behaviorValues->array() : nullptr;
+            if (!behaviors || behaviors->empty())
+            {
+                errors.push_back(path.string() +
+                    ": behaviors must be a non-empty array");
+                continue;
+            }
+
+            std::map<std::string, bool, std::less<>> seen;
+            for (std::size_t index = 0; index < behaviors->size(); ++index)
+            {
+                const auto* object = (*behaviors)[index].object();
+                const std::string context = path.string() +
+                    ": behavior[" + std::to_string(index) + "]";
+                if (!object)
+                {
+                    errors.push_back(context + " must be an object");
+                    continue;
+                }
+
+                const auto id = stringField(*object, "id");
+                if (!id)
+                {
+                    errors.push_back(context + " id is required");
+                    continue;
+                }
+                if (seen.contains(*id))
+                {
+                    errors.push_back(path.string() +
+                        ": duplicate behavior override: " + *id);
+                    continue;
+                }
+                seen[*id] = true;
+
+                auto found = std::find_if(catalog->behaviors_.begin(),
+                    catalog->behaviors_.end(),
+                    [&](const Behavior& behavior)
+                    {
+                        return behavior.id == *id;
+                    });
+                if (found == catalog->behaviors_.end())
+                {
+                    errors.push_back(path.string() +
+                        ": unknown behavior override: " + *id);
+                    continue;
+                }
+
+                const auto* bindings = objectField(*object, "bindings");
+                if (!bindings)
+                {
+                    errors.push_back(context + " bindings are required");
+                    continue;
+                }
+
+                bool changed = false;
+                if (const auto* xplane = objectField(*bindings, "xplane"))
+                {
+                    found->xplane = parseXPlaneBinding(
+                        *xplane, errors, *id);
+                    found->xplaneSource = path.string();
+                    changed = true;
+                }
+                if (const auto* msfs = objectField(*bindings, "msfs"))
+                {
+                    found->msfs = parseMsfsBinding(
+                        *msfs, errors, *id);
+                    found->msfsSource = path.string();
+                    changed = true;
+                }
+                if (!changed)
+                {
+                    errors.push_back(context +
+                        " must override xplane or msfs bindings");
+                }
+            }
+        }
+
+        return errors.empty() ? std::move(catalog) : std::nullopt;
     }
 }

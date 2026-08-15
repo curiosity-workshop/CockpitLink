@@ -368,6 +368,37 @@ namespace cockpitlink::protocol
         return result;
     }
 
+    std::vector<std::byte> encodeCommandActionPayload(
+        const CommandActionPayload& payload)
+    {
+        std::vector<std::byte> bytes;
+        pushU16(bytes, payload.handle);
+        bytes.push_back(static_cast<std::byte>(payload.action));
+        return bytes;
+    }
+
+    std::optional<CommandActionPayload> decodeCommandActionPayload(
+        std::span<const std::byte> payload)
+    {
+        std::size_t offset = 0;
+        const auto handle = readU16(payload, offset);
+        std::uint8_t action = 0;
+
+        if (!handle ||
+            !readU8(payload, offset, action) ||
+            offset != payload.size() ||
+            action < static_cast<std::uint8_t>(CommandActionKind::Trigger) ||
+            action > static_cast<std::uint8_t>(CommandActionKind::End))
+        {
+            return std::nullopt;
+        }
+
+        return CommandActionPayload{
+            *handle,
+            static_cast<CommandActionKind>(action)
+        };
+    }
+
     bool hasCapability(
         const HelloPayload& payload,
         CapabilityFlag capability)

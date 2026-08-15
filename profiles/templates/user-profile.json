@@ -1,0 +1,30 @@
+{
+  "profileVersion": 1,
+  "name": "My CockpitLink overrides",
+  "layer": "user",
+  "behaviors": [
+    {
+      "id": "flight.yaw",
+      "bindings": {
+        "msfs": {
+          "default": {
+            "capability": {
+              "read": "unsupported",
+              "write": "native",
+              "command": "unsupported"
+            },
+            "event": {
+              "event": "AXIS_RUDDER_SET",
+              "scale": {
+                "fromMin": -100,
+                "fromMax": 100,
+                "toMin": 16383,
+                "toMax": -16383
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,105 @@
+{
+  "profileVersion": 1,
+  "name": "MSFS Beechcraft King Air 350i",
+  "layer": "aircraft",
+  "match": {
+    "simulator": "msfs",
+    "aircraftTitleContains": ["King Air 350I", "King Air 350i"]
+  },
+  "behaviors": [
+    {
+      "id": "engine.1.throttle",
+      "bindings": {
+        "msfs": {
+          "default": {
+            "capability": {
+              "read": "unsupported",
+              "write": "native",
+              "command": "unsupported"
+            },
+            "event": {
+              "event": "AXIS_THROTTLE1_SET",
+              "scale": {
+                "fromMin": 0,
+                "fromMax": 100,
+                "toMin": -16383,
+                "toMax": 16383
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "engine.2.throttle",
+      "bindings": {
+        "msfs": {
+          "default": {
+            "capability": {
+              "read": "unsupported",
+              "write": "native",
+              "command": "unsupported"
+            },
+            "event": {
+              "event": "AXIS_THROTTLE2_SET",
+              "scale": {
+                "fromMin": 0,
+                "fromMax": 100,
+                "toMin": -16383,
+                "toMax": 16383
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "engine.1.mixture",
+      "bindings": {
+        "msfs": {
+          "default": {
+            "capability": {
+              "read": "unsupported",
+              "write": "native",
+              "command": "unsupported"
+            },
+            "inputEvent": {
+              "name": "FUEL_1_Condition_Lever",
+              "steps": 3,
+              "scale": {
+                "fromMin": 0,
+                "fromMax": 100,
+                "toMin": 2,
+                "toMax": 0
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "engine.2.mixture",
+      "bindings": {
+        "msfs": {
+          "default": {
+            "capability": {
+              "read": "unsupported",
+              "write": "native",
+              "command": "unsupported"
+            },
+            "inputEvent": {
+              "name": "FUEL_2_Condition_Lever",
+              "steps": 3,
+              "scale": {
+                "fromMin": 0,
+                "fromMax": 100,
+                "toMin": 2,
+                "toMax": 0
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

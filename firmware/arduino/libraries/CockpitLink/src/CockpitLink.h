@@ -7,9 +7,60 @@
 #define COCKPITLINK_BAUDRATE 115200
 #endif
 
+#ifndef COCKPITLINK_MAX_REGISTRATIONS
+#define COCKPITLINK_MAX_REGISTRATIONS 64
+#endif
+#ifndef COCKPITLINK_MAX_SWITCHES
+#define COCKPITLINK_MAX_SWITCHES 32
+#endif
+#ifndef COCKPITLINK_MAX_BUTTONS
+#define COCKPITLINK_MAX_BUTTONS 24
+#endif
+#ifndef COCKPITLINK_MAX_OUTPUTS
+#define COCKPITLINK_MAX_OUTPUTS 16
+#endif
+#ifndef COCKPITLINK_MAX_AXES
+#define COCKPITLINK_MAX_AXES 12
+#endif
+#ifndef COCKPITLINK_MAX_INTEGERS
+#define COCKPITLINK_MAX_INTEGERS 8
+#endif
+#ifndef COCKPITLINK_MAX_ENCODERS
+#define COCKPITLINK_MAX_ENCODERS 8
+#endif
+#ifndef COCKPITLINK_MAX_ENCODER_MODES
+#define COCKPITLINK_MAX_ENCODER_MODES 8
+#endif
+
 namespace cockpitlink
 {
+    static_assert(COCKPITLINK_MAX_REGISTRATIONS > 0 &&
+        COCKPITLINK_MAX_REGISTRATIONS <= 255,
+        "COCKPITLINK_MAX_REGISTRATIONS must be between 1 and 255");
+    static_assert(COCKPITLINK_MAX_SWITCHES > 0 &&
+        COCKPITLINK_MAX_SWITCHES <= 255,
+        "COCKPITLINK_MAX_SWITCHES must be between 1 and 255");
+    static_assert(COCKPITLINK_MAX_BUTTONS > 0 &&
+        COCKPITLINK_MAX_BUTTONS <= 255,
+        "COCKPITLINK_MAX_BUTTONS must be between 1 and 255");
+    static_assert(COCKPITLINK_MAX_OUTPUTS > 0 &&
+        COCKPITLINK_MAX_OUTPUTS <= 255,
+        "COCKPITLINK_MAX_OUTPUTS must be between 1 and 255");
+    static_assert(COCKPITLINK_MAX_AXES > 0 &&
+        COCKPITLINK_MAX_AXES <= 255,
+        "COCKPITLINK_MAX_AXES must be between 1 and 255");
+    static_assert(COCKPITLINK_MAX_INTEGERS > 0 &&
+        COCKPITLINK_MAX_INTEGERS <= 255,
+        "COCKPITLINK_MAX_INTEGERS must be between 1 and 255");
+    static_assert(COCKPITLINK_MAX_ENCODERS > 0 &&
+        COCKPITLINK_MAX_ENCODERS <= 255,
+        "COCKPITLINK_MAX_ENCODERS must be between 1 and 255");
+    static_assert(COCKPITLINK_MAX_ENCODER_MODES > 0 &&
+        COCKPITLINK_MAX_ENCODER_MODES <= 255,
+        "COCKPITLINK_MAX_ENCODER_MODES must be between 1 and 255");
+
     class CockpitLinkDevice;
+    class EncoderBuilder;
 
     template <typename LcdT>
     class I2cLcdHelper
@@ -141,12 +192,20 @@ namespace cockpitlink
             CockpitLinkDevice* device,
             uint8_t pin);
 
+        SwitchBuilder reversed() const;
+
         SwitchBinding controls(
             const char* behaviorId) const;
 
     private:
+        SwitchBuilder(
+            CockpitLinkDevice* device,
+            uint8_t pin,
+            bool reversed);
+
         CockpitLinkDevice* device_;
         uint8_t pin_;
+        bool reversed_ = false;
     };
 
     class OutputBuilder
@@ -171,12 +230,37 @@ namespace cockpitlink
             CockpitLinkDevice* device,
             uint8_t pin);
 
+        ButtonBuilder debounce(
+            uint16_t milliseconds) const;
+        ButtonBuilder doubleClickWithin(
+            uint16_t milliseconds) const;
+        ButtonBuilder longPressAfter(
+            uint16_t milliseconds) const;
+
         ButtonBinding triggers(
+            const char* behaviorId) const;
+        ButtonBinding clicks(
+            const char* behaviorId) const;
+        ButtonBinding doubleClicks(
+            const char* behaviorId) const;
+        ButtonBinding longPresses(
+            const char* behaviorId) const;
+        ButtonBinding startsEnds(
             const char* behaviorId) const;
 
     private:
+        ButtonBuilder(
+            CockpitLinkDevice* device,
+            uint8_t pin,
+            uint16_t debounceMs,
+            uint16_t doubleClickMs,
+            uint16_t longPressMs);
+
         CockpitLinkDevice* device_;
         uint8_t pin_;
+        uint16_t debounceMs_ = 25;
+        uint16_t doubleClickMs_ = 350;
+        uint16_t longPressMs_ = 700;
     };
 
     class PotentiometerBuilder
@@ -240,6 +324,34 @@ namespace cockpitlink
         uint16_t sampleIntervalMs_ = 100;
     };
 
+    class EncoderBuilder
+    {
+    public:
+        EncoderBuilder(
+            CockpitLinkDevice* device,
+            uint8_t pinA,
+            uint8_t pinB);
+
+        EncoderBuilder dividedBy(
+            uint8_t transitionsPerClick) const;
+
+        uint8_t changes(
+            const char* clockwiseBehaviorId,
+            const char* counterclockwiseBehaviorId) const;
+
+    private:
+        EncoderBuilder(
+            CockpitLinkDevice* device,
+            uint8_t pinA,
+            uint8_t pinB,
+            uint8_t transitionsPerClick);
+
+        CockpitLinkDevice* device_;
+        uint8_t pinA_;
+        uint8_t pinB_;
+        uint8_t transitionsPerClick_ = 4;
+    };
+
     class CockpitLinkDevice
     {
     public:
@@ -252,6 +364,16 @@ namespace cockpitlink
         void controlRefreshEvery(
             uint16_t intervalMs);
 
+        void followInteger(
+            const char* behaviorId);
+        bool integerValue(
+            const char* behaviorId,
+            int32_t& value) const;
+        uint8_t registerCommand(
+            const char* behaviorId);
+        bool triggerCommand(
+            uint8_t commandId);
+
         SwitchBuilder switchInput(
             uint8_t pin);
 
@@ -260,6 +382,16 @@ namespace cockpitlink
 
         ButtonBuilder button(
             uint8_t pin);
+        EncoderBuilder encoder(
+            uint8_t pinA,
+            uint8_t pinB);
+        uint8_t addEncoderMode(
+            uint8_t encoderId,
+            const char* clockwiseBehaviorId,
+            const char* counterclockwiseBehaviorId);
+        bool selectEncoderMode(
+            uint8_t encoderId,
+            uint8_t modeIndex);
 
         PotentiometerBuilder potentiometer(
             uint8_t pin);
@@ -281,25 +413,40 @@ namespace cockpitlink
 
         const char* deviceName() const;
         const char* firmwareVersion() const;
+        bool connected() const;
 
     private:
         friend class SwitchBuilder;
         friend class OutputBuilder;
         friend class ButtonBuilder;
         friend class PotentiometerBuilder;
+        friend class EncoderBuilder;
 
         enum class BindingRole : uint8_t
         {
             Follows = COCKPITLINK_ROLE_FOLLOWS,
             Controls = COCKPITLINK_ROLE_CONTROLS,
-            Triggers = COCKPITLINK_ROLE_TRIGGERS
+            Triggers = COCKPITLINK_ROLE_TRIGGERS,
+            StartsEnds = COCKPITLINK_ROLE_STARTS_ENDS
         };
 
         enum class BindingInput : uint8_t
         {
             Digital,
             AnalogPercent,
-            AnalogCentered
+            AnalogCentered,
+            EncoderCommand,
+            RemoteInteger
+        };
+
+        enum class ButtonGesture : uint8_t
+        {
+            None,
+            Press,
+            Hold,
+            Click,
+            DoubleClick,
+            LongPress
         };
 
         struct Binding
@@ -312,6 +459,55 @@ namespace cockpitlink
             uint16_t handle = 0;
             bool assigned = false;
             bool requested = false;
+            uint8_t stateIndex = 0xff;
+        };
+
+        struct SwitchState
+        {
+            uint8_t requestId = 0xff;
+            uint8_t pin = 0;
+            bool reversed = false;
+            uint16_t debounceMs = 25;
+            uint16_t sampleIntervalMs = 5;
+            bool initialized = false;
+            bool rawPressed = false;
+            bool stablePressed = false;
+            unsigned long rawChangedAt = 0;
+            int lastSentValue = -1;
+            bool hasSentValue = false;
+            unsigned long lastSentAt = 0;
+        };
+
+        struct ButtonState
+        {
+            uint8_t requestId = 0xff;
+            uint8_t pin = 0;
+            ButtonGesture gesture = ButtonGesture::None;
+            uint16_t debounceMs = 25;
+            uint16_t doubleClickMs = 350;
+            uint16_t longPressMs = 700;
+            uint16_t sampleIntervalMs = 5;
+            bool initialized = false;
+            bool rawPressed = false;
+            bool stablePressed = false;
+            bool longPressSent = false;
+            uint8_t clickCount = 0;
+            unsigned long rawChangedAt = 0;
+            unsigned long pressedAt = 0;
+            unsigned long clickDeadline = 0;
+            unsigned long lastSentAt = 0;
+        };
+
+        struct OutputState
+        {
+            uint8_t requestId = 0xff;
+            uint8_t pin = 0;
+        };
+
+        struct AxisState
+        {
+            uint8_t requestId = 0xff;
+            uint8_t pin = 0;
             int rawMin = 0;
             int rawCenter = 512;
             int rawMax = 1023;
@@ -323,6 +519,13 @@ namespace cockpitlink
             int lastSentValue = -1;
             bool hasSentValue = false;
             unsigned long lastSentAt = 0;
+        };
+
+        struct IntegerState
+        {
+            uint8_t requestId = 0xff;
+            int32_t receivedIntValue = 0;
+            bool hasReceivedIntValue = false;
         };
 
         enum class ParserState
@@ -339,6 +542,7 @@ namespace cockpitlink
             const ProtocolFrame& frame);
         void processRegistration();
         void processControls();
+        void processEncoders();
         void resetRegistration();
         void sendHelloAck(
             uint16_t sequence);
@@ -356,6 +560,9 @@ namespace cockpitlink
         void sendIntValueUpdate(
             uint16_t handle,
             int32_t value);
+        void sendCommandAction(
+            uint16_t handle,
+            uint8_t action);
         uint8_t addBinding(
             BindingRole role,
             BindingInput input,
@@ -368,7 +575,17 @@ namespace cockpitlink
             uint8_t deadbandPercent = 1,
             uint8_t bucketPercent = 1,
             uint8_t expoPercent = 0,
-            uint16_t sampleIntervalMs = 100);
+            uint16_t sampleIntervalMs = 100,
+            ButtonGesture buttonGesture = ButtonGesture::None,
+            uint16_t debounceMs = 25,
+            uint16_t doubleClickMs = 350,
+            uint16_t longPressMs = 700);
+        uint8_t addEncoder(
+            uint8_t pinA,
+            uint8_t pinB,
+            const char* clockwiseBehaviorId,
+            const char* counterclockwiseBehaviorId,
+            uint8_t transitionsPerClick);
         Binding* findBindingByRequest(
             uint8_t requestId);
         Binding* findBindingByHandle(
@@ -389,11 +606,42 @@ namespace cockpitlink
         unsigned long lastRegistrationRequestAt_ = 0;
         uint8_t nextRegistrationBindingIndex_ = 0;
 
-        static constexpr uint8_t maxBindings_ = 16;
+        static constexpr uint8_t maxBindings_ =
+            COCKPITLINK_MAX_REGISTRATIONS;
         static constexpr uint8_t maxControlUpdatesPerLoop_ = 3;
         Binding bindings_[maxBindings_]{};
         uint8_t bindingCount_ = 0;
         uint8_t nextControlBindingIndex_ = 0;
+        SwitchState switches_[COCKPITLINK_MAX_SWITCHES]{};
+        uint8_t switchCount_ = 0;
+        ButtonState buttons_[COCKPITLINK_MAX_BUTTONS]{};
+        uint8_t buttonCount_ = 0;
+        OutputState outputs_[COCKPITLINK_MAX_OUTPUTS]{};
+        uint8_t outputCount_ = 0;
+        AxisState axes_[COCKPITLINK_MAX_AXES]{};
+        uint8_t axisCount_ = 0;
+        IntegerState integers_[COCKPITLINK_MAX_INTEGERS]{};
+        uint8_t integerCount_ = 0;
+
+        struct Encoder
+        {
+            uint8_t pinA = 0;
+            uint8_t pinB = 0;
+            uint8_t clockwiseRequestIds[COCKPITLINK_MAX_ENCODER_MODES]{};
+            uint8_t counterclockwiseRequestIds[COCKPITLINK_MAX_ENCODER_MODES]{};
+            uint8_t modeCount = 0;
+            uint8_t selectedMode = 0;
+            uint8_t previousState = 0;
+            int8_t quarterSteps = 0;
+            uint8_t transitionsPerClick = 4;
+            int16_t pendingSteps = 0;
+            unsigned long lastDetentAt = 0;
+            unsigned long lastSentAt = 0;
+        };
+
+        static constexpr uint8_t maxEncoders_ = COCKPITLINK_MAX_ENCODERS;
+        Encoder encoders_[maxEncoders_]{};
+        uint8_t encoderCount_ = 0;
 
         ParserState parserState_ = ParserState::SeekingMagic0;
         uint8_t header_[COCKPITLINK_HEADER_SIZE]{};

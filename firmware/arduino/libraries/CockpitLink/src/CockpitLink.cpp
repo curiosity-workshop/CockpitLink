@@ -273,6 +273,19 @@ namespace cockpitlink
     {
     }
 
+    SwitchBuilder::SwitchBuilder(
+        CockpitLinkDevice* device,
+        uint8_t pin,
+        bool reversed)
+        : device_(device), pin_(pin), reversed_(reversed)
+    {
+    }
+
+    SwitchBuilder SwitchBuilder::reversed() const
+    {
+        return { device_, pin_, !reversed_ };
+    }
+
     SwitchBinding SwitchBuilder::controls(
         const char* behaviorId) const
     {
@@ -282,7 +295,8 @@ namespace cockpitlink
                 CockpitLinkDevice::BindingRole::Controls,
                 CockpitLinkDevice::BindingInput::Digital,
                 pin_,
-                behaviorId);
+                behaviorId,
+                0, 512, 1023, reversed_, 1, 1, 0, 5);
         }
 
         return { pin_, behaviorId };
@@ -319,6 +333,32 @@ namespace cockpitlink
     {
     }
 
+    ButtonBuilder::ButtonBuilder(
+        CockpitLinkDevice* device,
+        uint8_t pin,
+        uint16_t debounceMs,
+        uint16_t doubleClickMs,
+        uint16_t longPressMs)
+        : device_(device), pin_(pin), debounceMs_(debounceMs),
+          doubleClickMs_(doubleClickMs), longPressMs_(longPressMs)
+    {
+    }
+
+    ButtonBuilder ButtonBuilder::debounce(uint16_t milliseconds) const
+    {
+        return { device_, pin_, milliseconds, doubleClickMs_, longPressMs_ };
+    }
+
+    ButtonBuilder ButtonBuilder::doubleClickWithin(uint16_t milliseconds) const
+    {
+        return { device_, pin_, debounceMs_, milliseconds, longPressMs_ };
+    }
+
+    ButtonBuilder ButtonBuilder::longPressAfter(uint16_t milliseconds) const
+    {
+        return { device_, pin_, debounceMs_, doubleClickMs_, milliseconds };
+    }
+
     ButtonBinding ButtonBuilder::triggers(
         const char* behaviorId) const
     {
@@ -328,10 +368,116 @@ namespace cockpitlink
                 CockpitLinkDevice::BindingRole::Triggers,
                 CockpitLinkDevice::BindingInput::Digital,
                 pin_,
-                behaviorId);
+                behaviorId,
+                0, 512, 1023, false, 1, 1, 0, 5,
+                CockpitLinkDevice::ButtonGesture::Press,
+                debounceMs_, doubleClickMs_, longPressMs_);
         }
 
         return { pin_, behaviorId };
+    }
+
+    ButtonBinding ButtonBuilder::clicks(const char* behaviorId) const
+    {
+        if (device_ != nullptr)
+        {
+            device_->addBinding(
+                CockpitLinkDevice::BindingRole::Triggers,
+                CockpitLinkDevice::BindingInput::Digital,
+                pin_, behaviorId, 0, 512, 1023, false, 1, 1, 0, 5,
+                CockpitLinkDevice::ButtonGesture::Click,
+                debounceMs_, doubleClickMs_, longPressMs_);
+        }
+        return { pin_, behaviorId };
+    }
+
+    ButtonBinding ButtonBuilder::doubleClicks(const char* behaviorId) const
+    {
+        if (device_ != nullptr)
+        {
+            device_->addBinding(
+                CockpitLinkDevice::BindingRole::Triggers,
+                CockpitLinkDevice::BindingInput::Digital,
+                pin_, behaviorId, 0, 512, 1023, false, 1, 1, 0, 5,
+                CockpitLinkDevice::ButtonGesture::DoubleClick,
+                debounceMs_, doubleClickMs_, longPressMs_);
+        }
+        return { pin_, behaviorId };
+    }
+
+    ButtonBinding ButtonBuilder::longPresses(const char* behaviorId) const
+    {
+        if (device_ != nullptr)
+        {
+            device_->addBinding(
+                CockpitLinkDevice::BindingRole::Triggers,
+                CockpitLinkDevice::BindingInput::Digital,
+                pin_, behaviorId, 0, 512, 1023, false, 1, 1, 0, 5,
+                CockpitLinkDevice::ButtonGesture::LongPress,
+                debounceMs_, doubleClickMs_, longPressMs_);
+        }
+        return { pin_, behaviorId };
+    }
+
+    ButtonBinding ButtonBuilder::startsEnds(
+        const char* behaviorId) const
+    {
+        if (device_ != nullptr)
+        {
+            device_->addBinding(
+                CockpitLinkDevice::BindingRole::StartsEnds,
+                CockpitLinkDevice::BindingInput::Digital,
+                pin_,
+                behaviorId,
+                0, 512, 1023, false, 1, 1, 0, 5,
+                CockpitLinkDevice::ButtonGesture::Hold,
+                debounceMs_, doubleClickMs_, longPressMs_);
+        }
+
+        return { pin_, behaviorId };
+    }
+
+    EncoderBuilder::EncoderBuilder(
+        CockpitLinkDevice* device,
+        uint8_t pinA,
+        uint8_t pinB)
+        : device_(device), pinA_(pinA), pinB_(pinB)
+    {
+    }
+
+    EncoderBuilder::EncoderBuilder(
+        CockpitLinkDevice* device,
+        uint8_t pinA,
+        uint8_t pinB,
+        uint8_t transitionsPerClick)
+        : device_(device), pinA_(pinA), pinB_(pinB),
+          transitionsPerClick_(transitionsPerClick)
+    {
+    }
+
+    EncoderBuilder EncoderBuilder::dividedBy(
+        uint8_t transitionsPerClick) const
+    {
+        return {
+            device_, pinA_, pinB_,
+            transitionsPerClick == 0 ? 1 :
+                (transitionsPerClick > 127 ? 127 : transitionsPerClick)
+        };
+    }
+
+    uint8_t EncoderBuilder::changes(
+        const char* clockwiseBehaviorId,
+        const char* counterclockwiseBehaviorId) const
+    {
+        if (device_ != nullptr)
+        {
+            return device_->addEncoder(
+                pinA_, pinB_,
+                clockwiseBehaviorId,
+                counterclockwiseBehaviorId,
+                transitionsPerClick_);
+        }
+        return 0xff;
     }
 
     PotentiometerBuilder::PotentiometerBuilder(
@@ -734,12 +880,66 @@ namespace cockpitlink
         processSerial();
         processRegistration();
         processControls();
+        processEncoders();
     }
 
     void CockpitLinkDevice::controlRefreshEvery(
         uint16_t intervalMs)
     {
         controlRefreshIntervalMs_ = intervalMs;
+    }
+
+    void CockpitLinkDevice::followInteger(
+        const char* behaviorId)
+    {
+        addBinding(
+            BindingRole::Follows,
+            BindingInput::RemoteInteger,
+            0,
+            behaviorId);
+    }
+
+    bool CockpitLinkDevice::integerValue(
+        const char* behaviorId,
+        int32_t& value) const
+    {
+        for (uint8_t index = 0; index < integerCount_; ++index)
+        {
+            const IntegerState& state = integers_[index];
+            const Binding* binding =
+                const_cast<CockpitLinkDevice*>(this)->
+                    findBindingByRequest(state.requestId);
+            if (binding != nullptr && binding->behaviorId != nullptr &&
+                strcmp(binding->behaviorId, behaviorId) == 0 &&
+                state.hasReceivedIntValue)
+            {
+                value = state.receivedIntValue;
+                return true;
+            }
+        }
+        return false;
+    }
+
+    uint8_t CockpitLinkDevice::registerCommand(
+        const char* behaviorId)
+    {
+        return addBinding(
+            BindingRole::Triggers,
+            BindingInput::EncoderCommand,
+            0,
+            behaviorId);
+    }
+
+    bool CockpitLinkDevice::triggerCommand(
+        uint8_t commandId)
+    {
+        Binding* binding = findBindingByRequest(commandId);
+        if (binding == nullptr || !binding->assigned)
+        {
+            return false;
+        }
+        sendCommandAction(binding->handle, COCKPITLINK_COMMAND_TRIGGER);
+        return true;
     }
 
     SwitchBuilder CockpitLinkDevice::switchInput(
@@ -758,6 +958,62 @@ namespace cockpitlink
         uint8_t pin)
     {
         return ButtonBuilder{ this, pin };
+    }
+
+    EncoderBuilder CockpitLinkDevice::encoder(
+        uint8_t pinA,
+        uint8_t pinB)
+    {
+        return EncoderBuilder{ this, pinA, pinB };
+    }
+
+    uint8_t CockpitLinkDevice::addEncoderMode(
+        uint8_t encoderId,
+        const char* clockwiseBehaviorId,
+        const char* counterclockwiseBehaviorId)
+    {
+        if (encoderId >= encoderCount_ ||
+            bindingCount_ + 2 > maxBindings_)
+        {
+            return 0xff;
+        }
+
+        Encoder& encoder = encoders_[encoderId];
+        if (encoder.modeCount >= COCKPITLINK_MAX_ENCODER_MODES)
+        {
+            return 0xff;
+        }
+
+        const uint8_t modeIndex = encoder.modeCount++;
+        encoder.clockwiseRequestIds[modeIndex] = addBinding(
+            BindingRole::Triggers,
+            BindingInput::EncoderCommand,
+            encoder.pinA,
+            clockwiseBehaviorId);
+        encoder.counterclockwiseRequestIds[modeIndex] = addBinding(
+            BindingRole::Triggers,
+            BindingInput::EncoderCommand,
+            encoder.pinB,
+            counterclockwiseBehaviorId);
+        return modeIndex;
+    }
+
+    bool CockpitLinkDevice::selectEncoderMode(
+        uint8_t encoderId,
+        uint8_t modeIndex)
+    {
+        if (encoderId >= encoderCount_ ||
+            modeIndex >= encoders_[encoderId].modeCount)
+        {
+            return false;
+        }
+
+        Encoder& encoder = encoders_[encoderId];
+        encoder.selectedMode = modeIndex;
+        encoder.pendingSteps = 0;
+        encoder.quarterSteps = 0;
+        encoder.lastDetentAt = 0;
+        return true;
     }
 
     PotentiometerBuilder CockpitLinkDevice::potentiometer(
@@ -780,6 +1036,11 @@ namespace cockpitlink
     const char* CockpitLinkDevice::firmwareVersion() const
     {
         return firmwareVersion_;
+    }
+
+    bool CockpitLinkDevice::connected() const
+    {
+        return connected_;
     }
 
     void CockpitLinkDevice::processSerial()
@@ -917,101 +1178,178 @@ namespace cockpitlink
             ++inspected;
 
             if (!binding.assigned ||
-                binding.role != BindingRole::Controls)
+                binding.role == BindingRole::Follows)
             {
                 index =
                     nextIndex;
                 continue;
             }
 
-            if (now - binding.lastSentAt < binding.sampleIntervalMs)
+            if (binding.input == BindingInput::Digital &&
+                binding.role == BindingRole::Controls)
             {
-                index =
-                    nextIndex;
-                continue;
+                SwitchState& state = switches_[binding.stateIndex];
+                if (now - state.lastSentAt < state.sampleIntervalMs)
+                {
+                    index = nextIndex;
+                    continue;
+                }
+                const bool raw = digitalRead(state.pin) == LOW;
+                if (!state.initialized)
+                {
+                    state.initialized = true;
+                    state.rawPressed = raw;
+                    state.stablePressed = raw;
+                    state.rawChangedAt = now;
+                }
+                if (raw != state.rawPressed)
+                {
+                    state.rawPressed = raw;
+                    state.rawChangedAt = now;
+                }
+                if (state.rawPressed != state.stablePressed &&
+                    now - state.rawChangedAt >= state.debounceMs)
+                {
+                    state.stablePressed = state.rawPressed;
+                }
+                int value = state.stablePressed ? 1 : 0;
+                if (state.reversed) value = value == 0 ? 1 : 0;
+                const bool refreshDue = controlRefreshIntervalMs_ > 0 &&
+                    state.hasSentValue &&
+                    now - state.lastSentAt >= controlRefreshIntervalMs_;
+                if (refreshDue || !state.hasSentValue ||
+                    value != state.lastSentValue)
+                {
+                    sendBoolValueUpdate(binding.handle, value != 0);
+                    state.lastSentValue = value;
+                    state.hasSentValue = true;
+                    state.lastSentAt = now;
+                    ++sent;
+                }
             }
-
-            int value = 0;
-
-            if (binding.input == BindingInput::Digital)
+            else if (binding.input == BindingInput::Digital)
             {
-                value =
-                    digitalRead(binding.pin) == LOW ? 1 : 0;
-            }
-            else if (binding.input == BindingInput::AnalogPercent)
-            {
-                value =
-                    PotentiometerBuilder{
-                        this,
-                        binding.pin
+                ButtonState& state = buttons_[binding.stateIndex];
+                if (now - state.lastSentAt < state.sampleIntervalMs)
+                {
+                    index = nextIndex;
+                    continue;
+                }
+                const bool raw = digitalRead(state.pin) == LOW;
+                if (!state.initialized)
+                {
+                    state.initialized = true;
+                    state.rawPressed = raw;
+                    state.stablePressed = raw;
+                    state.rawChangedAt = now;
+                    state.pressedAt = now;
+                    index = nextIndex;
+                    continue;
+                }
+                if (raw != state.rawPressed)
+                {
+                    state.rawPressed = raw;
+                    state.rawChangedAt = now;
+                }
+                bool changed = false;
+                if (state.rawPressed != state.stablePressed &&
+                    now - state.rawChangedAt >= state.debounceMs)
+                {
+                    state.stablePressed = state.rawPressed;
+                    changed = true;
+                    if (state.stablePressed)
+                    {
+                        state.pressedAt = now;
+                        state.longPressSent = false;
                     }
-                        .calibrated(
-                            binding.rawMin,
-                            binding.rawMax)
-                        .reversed(
-                            binding.reversed)
-                        .bucket(
-                            binding.bucketPercent)
-                        .readPercent();
-            }
-            else if (binding.input == BindingInput::AnalogCentered)
-            {
-                value =
-                    PotentiometerBuilder{
-                        this,
-                        binding.pin
+                }
+                bool trigger = false;
+                if (state.gesture == ButtonGesture::Press)
+                    trigger = changed && state.stablePressed;
+                else if (state.gesture == ButtonGesture::Hold && changed)
+                {
+                    sendCommandAction(binding.handle,
+                        state.stablePressed ? COCKPITLINK_COMMAND_BEGIN :
+                            COCKPITLINK_COMMAND_END);
+                    ++sent;
+                }
+                else if (state.gesture == ButtonGesture::LongPress &&
+                    state.stablePressed && !state.longPressSent &&
+                    now - state.pressedAt >= state.longPressMs)
+                {
+                    trigger = true;
+                    state.longPressSent = true;
+                    state.clickCount = 0;
+                }
+                else if (changed && !state.stablePressed &&
+                    !state.longPressSent)
+                {
+                    if (state.clickCount == 0)
+                    {
+                        state.clickCount = 1;
+                        state.clickDeadline = now + state.doubleClickMs;
                     }
-                        .centered(
-                            binding.rawMin,
-                            binding.rawCenter,
-                            binding.rawMax)
-                        .reversed(
-                            binding.reversed)
-                        .expo(
-                            binding.expoPercent)
-                        .bucket(
-                            binding.bucketPercent)
+                    else if (static_cast<long>(
+                        now - state.clickDeadline) <= 0)
+                    {
+                        trigger = state.gesture == ButtonGesture::DoubleClick;
+                        state.clickCount = 0;
+                    }
+                }
+                if (state.clickCount == 1 &&
+                    static_cast<long>(now - state.clickDeadline) > 0)
+                {
+                    trigger = state.gesture == ButtonGesture::Click;
+                    state.clickCount = 0;
+                }
+                if (trigger)
+                {
+                    sendCommandAction(binding.handle,
+                        COCKPITLINK_COMMAND_TRIGGER);
+                    ++sent;
+                }
+                if (changed || trigger) state.lastSentAt = now;
+            }
+            else if (binding.input == BindingInput::AnalogPercent ||
+                binding.input == BindingInput::AnalogCentered)
+            {
+                AxisState& state = axes_[binding.stateIndex];
+                if (now - state.lastSentAt < state.sampleIntervalMs)
+                {
+                    index = nextIndex;
+                    continue;
+                }
+                PotentiometerBuilder builder{ this, state.pin };
+                int value = 0;
+                if (binding.input == BindingInput::AnalogCentered)
+                {
+                    value = builder.centered(state.rawMin, state.rawCenter,
+                            state.rawMax)
+                        .reversed(state.reversed)
+                        .expo(state.expoPercent)
+                        .bucket(state.bucketPercent)
                         .readCenteredPercent();
+                }
+                else
+                {
+                    value = builder.calibrated(state.rawMin, state.rawMax)
+                        .reversed(state.reversed)
+                        .bucket(state.bucketPercent)
+                        .readPercent();
+                }
+                const bool refreshDue = controlRefreshIntervalMs_ > 0 &&
+                    state.hasSentValue &&
+                    now - state.lastSentAt >= controlRefreshIntervalMs_;
+                if (refreshDue || !state.hasSentValue ||
+                    abs(value - state.lastSentValue) >= state.deadbandPercent)
+                {
+                    sendIntValueUpdate(binding.handle, value);
+                    state.lastSentValue = value;
+                    state.hasSentValue = true;
+                    state.lastSentAt = now;
+                    ++sent;
+                }
             }
-            else
-            {
-                index =
-                    nextIndex;
-                continue;
-            }
-
-            const bool refreshDue =
-                controlRefreshIntervalMs_ > 0 &&
-                binding.hasSentValue &&
-                now - binding.lastSentAt >= controlRefreshIntervalMs_;
-
-            if (!refreshDue &&
-                binding.hasSentValue &&
-                abs(value - binding.lastSentValue) <
-                    binding.deadbandPercent)
-            {
-                index =
-                    nextIndex;
-                continue;
-            }
-
-            if (binding.input == BindingInput::Digital)
-            {
-                sendBoolValueUpdate(
-                    binding.handle,
-                    value != 0);
-            }
-            else
-            {
-                sendIntValueUpdate(
-                    binding.handle,
-                    value);
-            }
-
-            binding.lastSentValue = value;
-            binding.hasSentValue = true;
-            binding.lastSentAt = now;
-            ++sent;
 
             index =
                 nextIndex;
@@ -1053,6 +1391,84 @@ namespace cockpitlink
         }
     }
 
+    void CockpitLinkDevice::processEncoders()
+    {
+        static const int8_t transitions[16] = {
+             0, -1,  1,  0,
+             1,  0,  0, -1,
+            -1,  0,  0,  1,
+             0,  1, -1,  0
+        };
+
+        const unsigned long now = millis();
+
+        for (uint8_t index = 0; index < encoderCount_; ++index)
+        {
+            Encoder& encoder = encoders_[index];
+            const uint8_t state =
+                (digitalRead(encoder.pinA) == HIGH ? 2 : 0) |
+                (digitalRead(encoder.pinB) == HIGH ? 1 : 0);
+            const uint8_t transition =
+                static_cast<uint8_t>((encoder.previousState << 2) | state);
+            encoder.previousState = state;
+            encoder.quarterSteps += transitions[transition];
+
+            if (encoder.quarterSteps >= encoder.transitionsPerClick)
+            {
+                const unsigned long elapsed =
+                    encoder.lastDetentAt == 0 ? 1000 :
+                        now - encoder.lastDetentAt;
+                const int16_t multiplier =
+                    elapsed <= 70 ? 5 :
+                    elapsed <= 140 ? 2 : 1;
+                encoder.pendingSteps = static_cast<int16_t>(constrain(
+                    static_cast<long>(encoder.pendingSteps) + multiplier,
+                    -360L,
+                    360L));
+                encoder.quarterSteps -= encoder.transitionsPerClick;
+                encoder.lastDetentAt = now;
+            }
+            else if (encoder.quarterSteps <=
+                -static_cast<int8_t>(encoder.transitionsPerClick))
+            {
+                const unsigned long elapsed =
+                    encoder.lastDetentAt == 0 ? 1000 :
+                        now - encoder.lastDetentAt;
+                const int16_t multiplier =
+                    elapsed <= 70 ? 5 :
+                    elapsed <= 140 ? 2 : 1;
+                encoder.pendingSteps = static_cast<int16_t>(constrain(
+                    static_cast<long>(encoder.pendingSteps) - multiplier,
+                    -360L,
+                    360L));
+                encoder.quarterSteps += encoder.transitionsPerClick;
+                encoder.lastDetentAt = now;
+            }
+
+            if (encoder.pendingSteps == 0 ||
+                now - encoder.lastSentAt < 10)
+            {
+                continue;
+            }
+
+            const uint8_t requestId = encoder.pendingSteps > 0 ?
+                encoder.clockwiseRequestIds[encoder.selectedMode] :
+                encoder.counterclockwiseRequestIds[encoder.selectedMode];
+            Binding* binding = findBindingByRequest(requestId);
+
+            if (binding == nullptr || !binding->assigned)
+            {
+                continue;
+            }
+
+            sendCommandAction(
+                binding->handle,
+                COCKPITLINK_COMMAND_TRIGGER);
+            encoder.pendingSteps += encoder.pendingSteps > 0 ? -1 : 1;
+            encoder.lastSentAt = now;
+        }
+    }
+
     void CockpitLinkDevice::resetRegistration()
     {
         connected_ = false;
@@ -1072,9 +1488,37 @@ namespace cockpitlink
             binding.handle = 0;
             binding.assigned = false;
             binding.requested = false;
-            binding.lastSentValue = -1;
-            binding.hasSentValue = false;
-            binding.lastSentAt = 0;
+        }
+
+        for (uint8_t index = 0; index < switchCount_; ++index)
+        {
+            switches_[index].initialized = false;
+            switches_[index].lastSentValue = -1;
+            switches_[index].hasSentValue = false;
+            switches_[index].lastSentAt = 0;
+        }
+        for (uint8_t index = 0; index < buttonCount_; ++index)
+        {
+            buttons_[index].initialized = false;
+            buttons_[index].clickCount = 0;
+            buttons_[index].longPressSent = false;
+            buttons_[index].lastSentAt = 0;
+        }
+        for (uint8_t index = 0; index < axisCount_; ++index)
+        {
+            axes_[index].lastSentValue = -1;
+            axes_[index].hasSentValue = false;
+            axes_[index].lastSentAt = 0;
+        }
+        for (uint8_t index = 0; index < integerCount_; ++index)
+        {
+            integers_[index].hasReceivedIntValue = false;
+        }
+        for (uint8_t index = 0; index < encoderCount_; ++index)
+        {
+            encoders_[index].quarterSteps = 0;
+            encoders_[index].pendingSteps = 0;
+            encoders_[index].lastSentAt = 0;
         }
     }
 
@@ -1181,7 +1625,8 @@ namespace cockpitlink
 
         uint8_t payload[5]{};
         writeU16(payload, binding.handle);
-        payload[2] = COCKPITLINK_VALUE_BOOL;
+        payload[2] = binding.input == BindingInput::RemoteInteger ?
+            COCKPITLINK_VALUE_INT : COCKPITLINK_VALUE_BOOL;
         writeU16(payload + 3, 100);
 
         uint8_t output[
@@ -1243,9 +1688,7 @@ namespace cockpitlink
         const uint16_t valueLength =
             readPayloadU16(frame, 3);
 
-        if (valueType != COCKPITLINK_VALUE_BOOL ||
-            valueLength != 1 ||
-            frame.payloadLength < 6)
+        if (frame.payloadLength < 5 + valueLength)
         {
             return;
         }
@@ -1264,9 +1707,32 @@ namespace cockpitlink
                 continue;
             }
 
-            digitalWrite(
-                binding.pin,
-                frame.payload[5] != 0 ? HIGH : LOW);
+            if (binding.input == BindingInput::Digital &&
+                valueType == COCKPITLINK_VALUE_BOOL && valueLength == 1)
+            {
+                if (binding.stateIndex >= outputCount_)
+                {
+                    continue;
+                }
+                digitalWrite(
+                    outputs_[binding.stateIndex].pin,
+                    frame.payload[5] != 0 ? HIGH : LOW);
+            }
+            else if (binding.input == BindingInput::RemoteInteger &&
+                valueType == COCKPITLINK_VALUE_INT && valueLength == 4)
+            {
+                if (binding.stateIndex >= integerCount_)
+                {
+                    continue;
+                }
+                IntegerState& state = integers_[binding.stateIndex];
+                state.receivedIntValue =
+                    (static_cast<int32_t>(frame.payload[5]) << 24) |
+                    (static_cast<int32_t>(frame.payload[6]) << 16) |
+                    (static_cast<int32_t>(frame.payload[7]) << 8) |
+                    static_cast<int32_t>(frame.payload[8]);
+                state.hasReceivedIntValue = true;
+            }
         }
     }
 
@@ -1332,6 +1798,35 @@ namespace cockpitlink
         }
     }
 
+    void CockpitLinkDevice::sendCommandAction(
+        uint16_t handle,
+        uint8_t action)
+    {
+        uint8_t payload[3]{};
+        writeU16(payload, handle);
+        payload[2] = action;
+
+        uint8_t output[
+            COCKPITLINK_HEADER_SIZE +
+            COCKPITLINK_MAX_PAYLOAD +
+            COCKPITLINK_CHECKSUM_SIZE]{};
+
+        const size_t outputSize =
+            encodeFrame(
+                COCKPITLINK_MSG_COMMAND_ACTION,
+                0,
+                nextSequence_++,
+                payload,
+                sizeof(payload),
+                output,
+                sizeof(output));
+
+        if (outputSize > 0)
+        {
+            Serial.write(output, outputSize);
+        }
+    }
+
     uint8_t CockpitLinkDevice::addBinding(
         BindingRole role,
         BindingInput input,
@@ -1344,7 +1839,11 @@ namespace cockpitlink
         uint8_t deadbandPercent,
         uint8_t bucketPercent,
         uint8_t expoPercent,
-        uint16_t sampleIntervalMs)
+        uint16_t sampleIntervalMs,
+        ButtonGesture buttonGesture,
+        uint16_t debounceMs,
+        uint16_t doubleClickMs,
+        uint16_t longPressMs)
     {
         if (bindingCount_ >= maxBindings_)
         {
@@ -1353,6 +1852,86 @@ namespace cockpitlink
 
         const uint8_t requestId =
             bindingCount_;
+        uint8_t stateIndex = 0xff;
+
+        if (input == BindingInput::Digital &&
+            role == BindingRole::Controls)
+        {
+            if (switchCount_ >= COCKPITLINK_MAX_SWITCHES)
+            {
+                return 0xff;
+            }
+            stateIndex = switchCount_++;
+            SwitchState& state = switches_[stateIndex];
+            state = SwitchState{};
+            state.requestId = requestId;
+            state.pin = pin;
+            state.reversed = reversed;
+            state.debounceMs = debounceMs;
+            state.sampleIntervalMs = sampleIntervalMs;
+        }
+        else if (input == BindingInput::Digital &&
+            role == BindingRole::Follows)
+        {
+            if (outputCount_ >= COCKPITLINK_MAX_OUTPUTS)
+            {
+                return 0xff;
+            }
+            stateIndex = outputCount_++;
+            OutputState& state = outputs_[stateIndex];
+            state = OutputState{};
+            state.requestId = requestId;
+            state.pin = pin;
+        }
+        else if (input == BindingInput::Digital)
+        {
+            if (buttonCount_ >= COCKPITLINK_MAX_BUTTONS)
+            {
+                return 0xff;
+            }
+            stateIndex = buttonCount_++;
+            ButtonState& state = buttons_[stateIndex];
+            state = ButtonState{};
+            state.requestId = requestId;
+            state.pin = pin;
+            state.gesture = buttonGesture;
+            state.debounceMs = debounceMs;
+            state.doubleClickMs = doubleClickMs;
+            state.longPressMs = longPressMs;
+            state.sampleIntervalMs = sampleIntervalMs;
+        }
+        else if (input == BindingInput::AnalogPercent ||
+            input == BindingInput::AnalogCentered)
+        {
+            if (axisCount_ >= COCKPITLINK_MAX_AXES)
+            {
+                return 0xff;
+            }
+            stateIndex = axisCount_++;
+            AxisState& state = axes_[stateIndex];
+            state = AxisState{};
+            state.requestId = requestId;
+            state.pin = pin;
+            state.rawMin = rawMin;
+            state.rawCenter = rawCenter;
+            state.rawMax = rawMax;
+            state.reversed = reversed;
+            state.deadbandPercent = deadbandPercent;
+            state.bucketPercent = bucketPercent;
+            state.expoPercent = expoPercent;
+            state.sampleIntervalMs = sampleIntervalMs;
+        }
+        else if (input == BindingInput::RemoteInteger)
+        {
+            if (integerCount_ >= COCKPITLINK_MAX_INTEGERS)
+            {
+                return 0xff;
+            }
+            stateIndex = integerCount_++;
+            IntegerState& state = integers_[stateIndex];
+            state = IntegerState{};
+            state.requestId = requestId;
+        }
 
         Binding& binding =
             bindings_[bindingCount_++];
@@ -1365,17 +1944,7 @@ namespace cockpitlink
         binding.handle = 0;
         binding.assigned = false;
         binding.requested = false;
-        binding.rawMin = rawMin;
-        binding.rawCenter = rawCenter;
-        binding.rawMax = rawMax;
-        binding.reversed = reversed;
-        binding.deadbandPercent = deadbandPercent;
-        binding.bucketPercent = bucketPercent;
-        binding.expoPercent = expoPercent;
-        binding.sampleIntervalMs = sampleIntervalMs;
-        binding.lastSentValue = -1;
-        binding.hasSentValue = false;
-        binding.lastSentAt = 0;
+        binding.stateIndex = stateIndex;
 
         if (connected_)
         {
@@ -1383,6 +1952,47 @@ namespace cockpitlink
         }
 
         return requestId;
+    }
+
+    uint8_t CockpitLinkDevice::addEncoder(
+        uint8_t pinA,
+        uint8_t pinB,
+        const char* clockwiseBehaviorId,
+        const char* counterclockwiseBehaviorId,
+        uint8_t transitionsPerClick)
+    {
+        if (encoderCount_ >= maxEncoders_ ||
+            bindingCount_ + 2 > maxBindings_)
+        {
+            return 0xff;
+        }
+
+        pinMode(pinA, INPUT_PULLUP);
+        pinMode(pinB, INPUT_PULLUP);
+
+        const uint8_t encoderId = encoderCount_++;
+        Encoder& encoder = encoders_[encoderId];
+        encoder.pinA = pinA;
+        encoder.pinB = pinB;
+        encoder.transitionsPerClick =
+            transitionsPerClick == 0 ? 1 :
+                (transitionsPerClick > 127 ? 127 : transitionsPerClick);
+        encoder.previousState =
+            (digitalRead(pinA) == HIGH ? 2 : 0) |
+            (digitalRead(pinB) == HIGH ? 1 : 0);
+        encoder.modeCount = 1;
+        encoder.selectedMode = 0;
+        encoder.clockwiseRequestIds[0] = addBinding(
+            BindingRole::Triggers,
+            BindingInput::EncoderCommand,
+            pinA,
+            clockwiseBehaviorId);
+        encoder.counterclockwiseRequestIds[0] = addBinding(
+            BindingRole::Triggers,
+            BindingInput::EncoderCommand,
+            pinB,
+            counterclockwiseBehaviorId);
+        return encoderId;
     }
 
     CockpitLinkDevice::Binding*
