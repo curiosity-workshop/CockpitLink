@@ -125,6 +125,38 @@ int main(
         !catalog->handleFor("missing.behavior"),
         "unknown behaviors should not get handles");
 
+    errors.clear();
+    const auto kingAirMetadata =
+        cockpitlink::catalog::loadProfileMetadata(argv[2], errors);
+    passed &= expect(
+        kingAirMetadata.has_value(),
+        "aircraft profile metadata should load");
+    passed &= expect(
+        kingAirMetadata && cockpitlink::catalog::profileMatches(
+            *kingAirMetadata, "msfs",
+            "Beechcraft King Air 350I Kenmore Livery", ""),
+        "aircraft title matching should be case-insensitive");
+    passed &= expect(
+        kingAirMetadata && !cockpitlink::catalog::profileMatches(
+            *kingAirMetadata, "xplane", "King Air 350I", ""),
+        "simulator mismatch should reject an aircraft profile");
+
+    if (kingAirMetadata)
+    {
+        auto pathMetadata = *kingAirMetadata;
+        pathMetadata.simulator = "xplane";
+        pathMetadata.aircraftTitleContains.clear();
+        pathMetadata.aircraftPathContains = { "Aircraft/Heavy/Example" };
+        passed &= expect(
+            cockpitlink::catalog::profileMatches(pathMetadata, "XPLANE",
+                "example.acf", "C:/X-Plane 12/Aircraft/Heavy/Example.acf"),
+            "aircraft path matching should be case-insensitive");
+        passed &= expect(
+            !cockpitlink::catalog::profileMatches(pathMetadata, "xplane",
+                "example.acf", "C:/X-Plane 12/Aircraft/General/Example.acf"),
+            "aircraft path mismatch should reject a profile");
+    }
+
     const auto* trim = catalog->find("flight.elevator_trim_up");
     passed &= expect(
         trim && trim->xplane && trim->xplane->command &&

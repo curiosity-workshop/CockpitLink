@@ -95,6 +95,23 @@ simulator. Use an aircraft profile for module-specific events, ranges, detents,
 or avionics. Use a device profile for a published hardware design. Use a local
 user profile for calibration, direction, personal choices, and experiments.
 
+For an X-Plane aircraft profile, include a narrow automatic match. Prefer the
+model filename when it is unique, or use part of the installed path to
+distinguish similarly named modules:
+
+```json
+"match": {
+  "simulator": "xplane",
+  "aircraftTitleContains": ["Example.acf"],
+  "aircraftPathContains": ["Aircraft/Example Developer"]
+}
+```
+
+CockpitLink reevaluates these profiles on user-aircraft unload/load messages.
+Changing aircraft does not change firmware handles or require firmware
+registration; the X-Plane adapter validates and atomically replaces its
+simulator-side bindings.
+
 Create local work by copying the template:
 
 ```powershell

@@ -9,6 +9,7 @@
 
 #include <XPLMDataAccess.h>
 #include <XPLMMenus.h>
+#include <XPLMPlanes.h>
 #include <XPLMPlugin.h>
 #include <XPLMProcessing.h>
 #include <XPLMUtilities.h>
@@ -114,7 +115,9 @@ namespace
         XPLMDebugString(stableMessage.c_str());
     }
 
-    bool loadCatalogBindings()
+    bool loadCatalogBindings(
+        std::string_view aircraftTitle,
+        std::string_view aircraftPath)
     {
         std::array<char, 2048> pluginPath{};
         XPLMGetPluginInfo(
@@ -144,15 +147,96 @@ namespace
                 continue;
             }
 
-            catalog =
-                cockpitlink::catalog::loadBehaviorCatalog(
-                    candidate,
-                    errors);
+            loadedPath = candidate;
+            break;
+
+        }
+
+        if (!loadedPath.empty())
+        {
+            std::vector<std::filesystem::path> layers{ loadedPath };
+            bool profileSelectionValid = true;
+            const auto profileRoot = loadedPath.parent_path().parent_path() /
+                "profiles";
+
+            const auto appendMatchingProfiles = [&](const char* directory,
+                std::string_view expectedLayer)
+            {
+                std::vector<std::filesystem::path> candidates;
+                std::error_code directoryError;
+                const auto path = profileRoot / directory;
+                if (!std::filesystem::is_directory(path, directoryError))
+                {
+                    return;
+                }
+                for (const auto& entry :
+                    std::filesystem::directory_iterator(path, directoryError))
+                {
+                    if (directoryError)
+                    {
+                        break;
+                    }
+                    if (entry.is_regular_file() &&
+                        entry.path().extension() == ".json")
+                    {
+                        candidates.push_back(entry.path());
+                    }
+                }
+                std::sort(candidates.begin(), candidates.end());
+
+                for (const auto& profilePath : candidates)
+                {
+                    std::vector<std::string> metadataErrors;
+                    const auto metadata =
+                        cockpitlink::catalog::loadProfileMetadata(
+                            profilePath, metadataErrors);
+                    if (!metadata)
+                    {
+                        for (const auto& error : metadataErrors)
+                        {
+                            errors.push_back(error);
+                        }
+                        profileSelectionValid = false;
+                        continue;
+                    }
+                    if (metadata->layer != expectedLayer)
+                    {
+                        continue;
+                    }
+                    if (metadata->layer == "aircraft" &&
+                        metadata->aircraftTitleContains.empty() &&
+                        metadata->aircraftPathContains.empty())
+                    {
+                        debugLog("CockpitLink: aircraft profile has no "
+                            "aircraft match and was skipped: " +
+                            profilePath.string() + "\n");
+                        continue;
+                    }
+                    if (cockpitlink::catalog::profileMatches(*metadata,
+                        "xplane", aircraftTitle, aircraftPath))
+                    {
+                        layers.push_back(profilePath);
+                    }
+                }
+            };
+
+            appendMatchingProfiles("simulator", "simulator");
+            appendMatchingProfiles("aircraft", "aircraft");
+            appendMatchingProfiles("local", "user");
+
+            if (profileSelectionValid)
+            {
+                catalog = cockpitlink::catalog::loadLayeredBehaviorCatalog(
+                    layers, errors);
+            }
 
             if (catalog)
             {
-                loadedPath = candidate;
-                break;
+                for (std::size_t index = 1; index < layers.size(); ++index)
+                {
+                    debugLog("CockpitLink: active profile: " +
+                        layers[index].string() + "\n");
+                }
             }
         }
 
@@ -169,10 +253,10 @@ namespace
             return false;
         }
 
-        boolBindings.clear();
-        percentAxisBindings.clear();
-        commandBindings.clear();
-        intReadBindings.clear();
+        std::vector<BoolBinding> newBoolBindings;
+        std::vector<PercentAxisBinding> newPercentAxisBindings;
+        std::vector<CommandBinding> newCommandBindings;
+        std::vector<IntReadBinding> newIntReadBindings;
 
         for (const auto& behavior : catalog->behaviors())
         {
@@ -189,7 +273,7 @@ namespace
 
             if (xplane.command)
             {
-                commandBindings.push_back({
+                newCommandBindings.push_back({
                     behavior.id,
                     *handle,
                     *xplane.command
@@ -203,7 +287,7 @@ namespace
             {
                 const auto& operation = *xplane.read;
                 const auto& scale = *operation.scale;
-                intReadBindings.push_back({
+                newIntReadBindings.push_back({
                     behavior.id,
                     *handle,
                     operation.dataRef,
@@ -237,7 +321,7 @@ namespace
                     binding.writeDataRef = xplane.write->dataRef;
                 }
 
-                boolBindings.push_back(std::move(binding));
+                newBoolBindings.push_back(std::move(binding));
                 continue;
             }
 
@@ -274,8 +358,13 @@ namespace
                 static_cast<float>(scale.toMax);
             binding.xplaneArray =
                 operation.type == "float_array";
-            percentAxisBindings.push_back(std::move(binding));
+            newPercentAxisBindings.push_back(std::move(binding));
         }
+
+        boolBindings.swap(newBoolBindings);
+        percentAxisBindings.swap(newPercentAxisBindings);
+        commandBindings.swap(newCommandBindings);
+        intReadBindings.swap(newIntReadBindings);
 
         std::ostringstream message;
         message
@@ -294,6 +383,14 @@ namespace
             << " integer read bindings).\n";
         debugLog(message.str());
         return true;
+    }
+
+    std::pair<std::string, std::string> loadedAircraftIdentity()
+    {
+        std::array<char, 512> fileName{};
+        std::array<char, 2048> path{};
+        XPLMGetNthAircraftModel(0, fileName.data(), path.data());
+        return { fileName.data(), path.data() };
     }
 
     bool shouldProbe(
@@ -472,8 +569,64 @@ namespace
         float flightLoop()
         {
             tick();
-            drainNextXPlaneCommand();
+            if (bindingsActive_)
+            {
+                drainNextXPlaneCommand();
+            }
             return -1.0f;
+        }
+
+        void aircraftUnloading()
+        {
+            bindingsActive_ = false;
+            for (const auto& commandName : activeCommands_)
+            {
+                if (const auto command = XPLMFindCommand(commandName.c_str()))
+                {
+                    XPLMCommandEnd(command);
+                }
+            }
+            activeCommands_.clear();
+            pendingXPlaneCommands_.clear();
+            debugLog("CockpitLink: aircraft unloading; bindings paused.\n");
+        }
+
+        bool aircraftLoaded(
+            std::string_view aircraftTitle,
+            std::string_view aircraftPath)
+        {
+            if (!loadCatalogBindings(aircraftTitle, aircraftPath))
+            {
+                debugLog("CockpitLink: new aircraft profile was rejected; "
+                    "bindings remain paused.\n");
+                return false;
+            }
+
+            boolDataRefs_.fill(nullptr);
+            intDataRefs_.fill(nullptr);
+            axisDataRefs_.fill(nullptr);
+            hasSentBoolValue_.fill(false);
+            hasSentIntValue_.fill(false);
+            lastAxisPercent_.fill(-1);
+            const auto now = std::chrono::steady_clock::now();
+            for (std::size_t handle = 0;
+                handle < maxBehaviorHandle_; ++handle)
+            {
+                if (boolSubscribed_[handle])
+                {
+                    boolNextDue_[handle] = now;
+                }
+                if (intSubscribed_[handle])
+                {
+                    intNextDue_[handle] = now;
+                }
+            }
+            bindingsActive_ = true;
+
+            debugLog("CockpitLink: activated aircraft configuration for " +
+                std::string{ aircraftTitle } + " [" +
+                std::string{ aircraftPath } + "].\n");
+            return true;
         }
 
         void handleMenuAction(
@@ -630,6 +783,15 @@ namespace
 
         void disconnect()
         {
+            for (const auto& commandName : activeCommands_)
+            {
+                if (const auto command = XPLMFindCommand(commandName.c_str()))
+                {
+                    XPLMCommandEnd(command);
+                }
+            }
+            activeCommands_.clear();
+
             if (transport_)
             {
                 transport_->close();
@@ -677,7 +839,10 @@ namespace
 
             case ConnectionState::Connected:
                 readConnectedPort();
-                tickSubscriptions(now);
+                if (bindingsActive_)
+                {
+                    tickSubscriptions(now);
+                }
                 break;
             }
 
@@ -969,6 +1134,11 @@ namespace
         void handleCommandAction(
             const cockpitlink::protocol::Frame& frame)
         {
+            if (!bindingsActive_)
+            {
+                return;
+            }
+
             const auto action =
                 cockpitlink::protocol::decodeCommandActionPayload(
                     frame.payload);
@@ -1018,9 +1188,15 @@ namespace
                 break;
             case CommandActionKind::Begin:
                 XPLMCommandBegin(command);
+                if (std::find(activeCommands_.begin(), activeCommands_.end(),
+                    pending.command) == activeCommands_.end())
+                {
+                    activeCommands_.push_back(pending.command);
+                }
                 break;
             case CommandActionKind::End:
                 XPLMCommandEnd(command);
+                std::erase(activeCommands_, pending.command);
                 break;
             }
         }
@@ -1177,6 +1353,11 @@ namespace
         void handleValueUpdate(
             const cockpitlink::protocol::Frame& frame)
         {
+            if (!bindingsActive_)
+            {
+                return;
+            }
+
             const auto update =
                 cockpitlink::protocol::decodeValueUpdatePayload(
                     frame.payload);
@@ -1552,6 +1733,8 @@ namespace
         std::array<XPLMDataRef, maxBehaviorHandle_> axisDataRefs_{};
         std::deque<PendingBehaviorAssignment> pendingAssignments_;
         std::deque<PendingXPlaneCommand> pendingXPlaneCommands_;
+        std::vector<std::string> activeCommands_;
+        bool bindingsActive_ = true;
         std::chrono::steady_clock::time_point nextAssignmentAt_{};
         XPLMMenuID menu_ = nullptr;
         int pluginsMenuItemIndex_ = -1;
@@ -1585,7 +1768,8 @@ extern "C"
         copyPluginString(outSig, "com.cockpitlink.xplane");
         copyPluginString(outDesc, "CockpitLink X-Plane behavior bridge.");
 
-        if (!loadCatalogBindings())
+        const auto [aircraftTitle, aircraftPath] = loadedAircraftIdentity();
+        if (!loadCatalogBindings(aircraftTitle, aircraftPath))
         {
             return 0;
         }
@@ -1631,8 +1815,25 @@ extern "C"
 
     PLUGIN_API void XPluginReceiveMessage(
         XPLMPluginID,
-        int,
-        void*)
+        int message,
+        void* parameter)
     {
+        if (!runtime)
+        {
+            return;
+        }
+
+        if (message == XPLM_MSG_PLANE_UNLOADED &&
+            reinterpret_cast<std::intptr_t>(parameter) == 0)
+        {
+            runtime->aircraftUnloading();
+        }
+        else if (message == XPLM_MSG_PLANE_LOADED &&
+            reinterpret_cast<std::intptr_t>(parameter) == 0)
+        {
+            const auto [aircraftTitle, aircraftPath] =
+                loadedAircraftIdentity();
+            runtime->aircraftLoaded(aircraftTitle, aircraftPath);
+        }
     }
 }

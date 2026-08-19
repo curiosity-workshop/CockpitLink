@@ -221,6 +221,19 @@ duplicate overrides within one profile, malformed bindings, and layers supplied
 out of precedence order. Each resolved simulator binding records the path of
 the layer that supplied it for diagnostics and AI-assisted profile development.
 
+Profile matching is case-insensitive. `match.simulator` limits a profile to an
+adapter. `match.aircraftTitleContains` matches the simulator's displayed or
+model filename, while `match.aircraftPathContains` can distinguish modules by
+their installed aircraft path. Multiple strings within either array are
+alternatives; when both arrays are present, both conditions must match.
+
+The X-Plane adapter discovers matching profiles when the user aircraft loads.
+It builds and validates the complete catalog stack before replacing the active
+binding table. Protocol handles remain stable, old dataref references and
+queued commands are discarded, held commands are ended, and subscriptions are
+refreshed against the new aircraft. A failed replacement remains disengaged
+rather than activating a partial profile.
+
 The MSFS host accepts the base catalog followed by profile paths:
 
 ```powershell
@@ -297,8 +310,9 @@ should present one stable unit to firmware and users.
 
 - Should behavior IDs be fully community-owned, or should the core project
   reserve top-level namespaces?
-- Automatic profile matching still needs to be connected to simulator aircraft
-  lifecycle events; explicit profile paths are currently supported.
+- MSFS automatic profile matching and hot replacement still need to be
+  connected to SimConnect aircraft lifecycle events; explicit profile paths
+  are currently supported.
 - Should writable toggles prefer direct writable values when available, or
   commands for simulator compatibility?
 - Should devices declare whether they require exact writes, or whether

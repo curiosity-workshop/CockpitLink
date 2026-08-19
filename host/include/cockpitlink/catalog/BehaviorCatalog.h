@@ -132,6 +132,15 @@ namespace cockpitlink::catalog
         std::string msfsSource;
     };
 
+    struct ProfileMetadata
+    {
+        std::string name;
+        std::string layer;
+        std::optional<std::string> simulator;
+        std::vector<std::string> aircraftTitleContains;
+        std::vector<std::string> aircraftPathContains;
+    };
+
     class BehaviorCatalog
     {
     public:
@@ -168,4 +177,14 @@ namespace cockpitlink::catalog
     std::optional<BehaviorCatalog> loadLayeredBehaviorCatalog(
         const std::vector<std::filesystem::path>& layers,
         std::vector<std::string>& errors);
+
+    std::optional<ProfileMetadata> loadProfileMetadata(
+        const std::filesystem::path& path,
+        std::vector<std::string>& errors);
+
+    bool profileMatches(
+        const ProfileMetadata& profile,
+        std::string_view simulator,
+        std::string_view aircraftTitle,
+        std::string_view aircraftPath);
 }

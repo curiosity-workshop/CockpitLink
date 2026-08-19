@@ -289,7 +289,14 @@ if(COCKPITLINK_BUILD_XPLANE_PLUGIN)
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
                 "${CMAKE_CURRENT_SOURCE_DIR}/catalog/base-behaviors.json"
                 "$<TARGET_FILE_DIR:CockpitLinkXPlanePlugin>/catalog/base-behaviors.json"
-        COMMENT "Copying CockpitLink behavior catalog"
+        COMMAND ${CMAKE_COMMAND} -E make_directory
+                "$<TARGET_FILE_DIR:CockpitLinkXPlanePlugin>/profiles/aircraft"
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+                "${CMAKE_CURRENT_SOURCE_DIR}/profiles/aircraft"
+                "$<TARGET_FILE_DIR:CockpitLinkXPlanePlugin>/profiles/aircraft"
+        COMMAND ${CMAKE_COMMAND} -E make_directory
+                "$<TARGET_FILE_DIR:CockpitLinkXPlanePlugin>/profiles/local"
+        COMMENT "Copying CockpitLink catalog and aircraft profiles"
     )
 
     if(WIN32)
@@ -350,6 +357,13 @@ if(COCKPITLINK_BUILD_XPLANE_PLUGIN)
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
                     "${CMAKE_CURRENT_SOURCE_DIR}/catalog/base-behaviors.json"
                     "${COCKPITLINK_XPLANE_PLUGIN_DEPLOY_DIR}/catalog/base-behaviors.json"
+            COMMAND ${CMAKE_COMMAND} -E make_directory
+                    "${COCKPITLINK_XPLANE_PLUGIN_DEPLOY_DIR}/profiles/aircraft"
+            COMMAND ${CMAKE_COMMAND} -E copy_directory
+                    "${CMAKE_CURRENT_SOURCE_DIR}/profiles/aircraft"
+                    "${COCKPITLINK_XPLANE_PLUGIN_DEPLOY_DIR}/profiles/aircraft"
+            COMMAND ${CMAKE_COMMAND} -E make_directory
+                    "${COCKPITLINK_XPLANE_PLUGIN_DEPLOY_DIR}/profiles/local"
             COMMENT
                     "Deploying CockpitLink.xpl to ${COCKPITLINK_XPLANE_PLUGIN_DEPLOY_DIR}"
         )

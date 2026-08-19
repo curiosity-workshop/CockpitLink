@@ -489,6 +489,51 @@ namespace
         return boolean ? std::optional<bool>{ *boolean } : std::nullopt;
     }
 
+    std::vector<std::string> stringArrayField(
+        const JsonObject& object,
+        std::string_view name,
+        const std::string& context,
+        std::vector<std::string>& errors)
+    {
+        const auto* value = field(object, name);
+        if (!value)
+        {
+            return {};
+        }
+        const auto* array = value->array();
+        if (!array)
+        {
+            errors.push_back(context + ": " + std::string{ name } +
+                " must be an array of strings");
+            return {};
+        }
+
+        std::vector<std::string> result;
+        for (const auto& entry : *array)
+        {
+            const auto* text = entry.string();
+            if (!text || text->empty())
+            {
+                errors.push_back(context + ": " + std::string{ name } +
+                    " must contain non-empty strings");
+                continue;
+            }
+            result.push_back(*text);
+        }
+        return result;
+    }
+
+    std::string lowerCase(std::string_view value)
+    {
+        std::string result{ value };
+        std::transform(result.begin(), result.end(), result.begin(),
+            [](unsigned char character)
+            {
+                return static_cast<char>(std::tolower(character));
+            });
+        return result;
+    }
+
     template<typename Enum>
     std::optional<Enum> parseEnum(
         const std::optional<std::string>& value,
@@ -1368,5 +1413,115 @@ namespace cockpitlink::catalog
         }
 
         return errors.empty() ? std::move(catalog) : std::nullopt;
+    }
+
+    std::optional<ProfileMetadata> loadProfileMetadata(
+        const std::filesystem::path& path,
+        std::vector<std::string>& errors)
+    {
+        errors.clear();
+        std::ifstream input{ path, std::ios::binary };
+        if (!input)
+        {
+            errors.push_back("cannot open catalog profile: " + path.string());
+            return std::nullopt;
+        }
+
+        std::ostringstream buffer;
+        buffer << input.rdbuf();
+        JsonValue root;
+        try
+        {
+            root = JsonParser{ buffer.str() }.parse();
+        }
+        catch (const std::exception& exception)
+        {
+            errors.push_back(path.string() + ": invalid JSON: " +
+                exception.what());
+            return std::nullopt;
+        }
+
+        const auto* object = root.object();
+        if (!object)
+        {
+            errors.push_back(path.string() +
+                ": profile root must be an object");
+            return std::nullopt;
+        }
+
+        ProfileMetadata metadata;
+        metadata.name = stringField(*object, "name").value_or("");
+        metadata.layer = stringField(*object, "layer").value_or("");
+        if (metadata.name.empty())
+        {
+            errors.push_back(path.string() + ": profile name is required");
+        }
+        if (metadata.layer != "simulator" &&
+            metadata.layer != "aircraft" &&
+            metadata.layer != "device" &&
+            metadata.layer != "user")
+        {
+            errors.push_back(path.string() +
+                ": layer must be simulator, aircraft, device, or user");
+        }
+
+        const auto* matchValue = field(*object, "match");
+        const auto* match = matchValue ? matchValue->object() : nullptr;
+        if (matchValue && !match)
+        {
+            errors.push_back(path.string() + ": match must be an object");
+        }
+        if (match)
+        {
+            metadata.simulator = stringField(*match, "simulator");
+            if (field(*match, "simulator") &&
+                (!metadata.simulator || metadata.simulator->empty()))
+            {
+                errors.push_back(path.string() +
+                    ": match.simulator must be a non-empty string");
+            }
+            metadata.aircraftTitleContains = stringArrayField(*match,
+                "aircraftTitleContains", path.string(), errors);
+            metadata.aircraftPathContains = stringArrayField(*match,
+                "aircraftPathContains", path.string(), errors);
+        }
+
+        return errors.empty() ?
+            std::optional<ProfileMetadata>{ std::move(metadata) } :
+            std::nullopt;
+    }
+
+    bool profileMatches(
+        const ProfileMetadata& profile,
+        std::string_view simulator,
+        std::string_view aircraftTitle,
+        std::string_view aircraftPath)
+    {
+        const auto simulatorLower = lowerCase(simulator);
+        if (profile.simulator &&
+            lowerCase(*profile.simulator) != simulatorLower)
+        {
+            return false;
+        }
+
+        const auto containsAny = [](std::string_view value,
+            const std::vector<std::string>& needles)
+        {
+            if (needles.empty())
+            {
+                return true;
+            }
+            const auto valueLower = lowerCase(value);
+            return std::any_of(needles.begin(), needles.end(),
+                [&](const std::string& needle)
+                {
+                    return valueLower.find(lowerCase(needle)) !=
+                        std::string::npos;
+                });
+        };
+
+        return containsAny(aircraftTitle,
+                   profile.aircraftTitleContains) &&
+            containsAny(aircraftPath, profile.aircraftPathContains);
     }
 }
